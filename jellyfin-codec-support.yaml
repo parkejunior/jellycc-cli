@@ -1,0 +1,197 @@
+# Jellyfin Codec Support Matrix
+# Fonte: https://jellyfin.org/docs/general/clients/codec-support/
+# Estrutura preparada para scripts de automação (ffprobe/ffmpeg)
+
+metadata:
+  version: "1.1"
+  description: "Matriz de compatibilidade para verificação de Direct Play vs Transcoding"
+
+clients:
+  chrome:
+    video:
+      mpeg4_part2_sp: false
+      mpeg4_part2_asp: false
+      h264_8bit: true
+      h264_10bit: true
+      hevc_8bit: "Chromium 107+ suporta se a descodificação de hardware estiver disponível."
+      hevc_10bit: "Chromium 107+ suporta se a descodificação de hardware estiver disponível."
+      vp9: true
+      av1: true
+    audio:
+      flac: true
+      mp3: "Mono é reportado incorretamente como não suportado e causará transcode para AAC."
+      aac: true
+      ac3: true
+      eac3: true
+      vorbis: true
+      dts: false
+      opus: true
+      alac: false
+    containers:
+      mp4: true
+      mkv: "Requer pelo menos Chrome 145."
+      webm: true
+      ts: true
+      ogg: true
+
+  firefox:
+    video:
+      mpeg4_part2_sp: false
+      mpeg4_part2_asp: false
+      h264_8bit: true
+      h264_10bit: false
+      hevc_8bit: "Firefox 134+ no Windows/macOS/Linux. Requer extensões HEVC no Windows e ffmpeg no Linux."
+      hevc_10bit: "Firefox 134+ no Windows/macOS/Linux. Requer extensões HEVC no Windows e ffmpeg no Linux."
+      vp9: true
+      av1: true
+    audio:
+      flac: true
+      mp3: true
+      aac: true
+      ac3: false
+      eac3: true
+      vorbis: true
+      dts: false
+      opus: true
+      alac: false
+    containers:
+      mp4: true
+      mkv: "Desativado no Jellyfin devido a problemas graves de estabilidade."
+      webm: true
+      ts: true
+      ogg: true
+
+  safari:
+    video:
+      mpeg4_part2_sp: false
+      mpeg4_part2_asp: false
+      h264_8bit: true
+      h264_10bit: "Deve ser ativado manualmente. Pode causar frames vazios em Macs Intel ou macOS < 14."
+      hevc_8bit: "Apenas em MP4/M4V/MOV. Requer chip A8X+ e pelo menos iOS 14."
+      hevc_10bit: "Apenas em MP4/M4V/MOV. Requer chip A8X+ e pelo menos iOS 14."
+      vp9: "Requer pelo menos Safari 14."
+      av1: "Apenas em chips A17 ou M3+ e pelo menos Safari 17."
+    audio:
+      flac: true
+      mp3: true
+      aac: true
+      ac3: true
+      eac3: true
+      vorbis: "iOS 18.4 / macOS 15.4+ suporta em containers OGG."
+      dts: false
+      opus: "iOS 17+ suporta stereo em MP4; iOS 18.4+ em OGG; Nativo apenas em .caf."
+      alac: true
+    containers:
+      mp4: true
+      mkv: false
+      webm: "Requer pelo menos Safari 14."
+      ts: true
+      ogg: "Requer pelo menos iOS 18.4 / macOS 15.4."
+
+  android_app:
+    video:
+      mpeg4_part2_sp: false
+      mpeg4_part2_asp: false
+      h264_8bit: true
+      h264_10bit: true
+      hevc_8bit: "Suportado em Android 5.0+, mas gera erro em gerações antigas do Amazon Fire."
+      hevc_10bit: "Dependente do hardware do dispositivo."
+      vp9: "Dependente do suporte de hardware (comum em dispositivos de gama alta/4K)."
+      av1: true
+    audio:
+      flac: true
+      mp3: true
+      aac: true
+      ac3: true
+      eac3: true
+      vorbis: true
+      dts: true
+      opus: true
+      alac: false
+    containers:
+      mp4: true
+      mkv: true
+      webm: true
+      ts: true
+      ogg: true
+
+  android_tv:
+    video:
+      mpeg4_part2_sp: false
+      mpeg4_part2_asp: false
+      h264_8bit: true
+      h264_10bit: false
+      hevc_8bit: "Suportado em Android 5.0+; 10Bit depende do hardware."
+      hevc_10bit: "Dependente do hardware do dispositivo."
+      vp9: "Dependente do suporte de hardware."
+      av1: "Requer pelo menos Android TV 10."
+    audio:
+      flac: true
+      mp3: true
+      aac: true
+      ac3: true
+      eac3: true
+      vorbis: true
+      dts: true
+      opus: true
+      alac: false
+    containers:
+      mp4: true
+      mkv: true
+      webm: true
+      ts: true
+      ogg: true
+
+  roku:
+    video:
+      mpeg4_part2_sp: true
+      mpeg4_part2_asp: true
+      h264_8bit: true
+      h264_10bit: true
+      hevc_8bit: "Suportado apenas em dispositivos 4K."
+      hevc_10bit: "Suportado apenas em dispositivos 4K."
+      vp9: true
+      av1: "Dependente do hardware do modelo."
+    audio:
+      flac: true
+      mp3: true
+      aac: true
+      ac3: "Nativo em Roku TVs e Ultra; Passthrough nos outros."
+      eac3: "Nativo em Roku TVs e Ultra; Passthrough nos outros."
+      vorbis: true
+      dts: "Suportado via Passthrough em todos os dispositivos."
+      opus: true
+      alac: true
+    containers:
+      mp4: true
+      mkv: true
+      webm: true
+      ts: true
+      ogg: true
+
+  kodi_jellyfin_media_player:
+    video:
+      mpeg4_part2_sp: true
+      mpeg4_part2_asp: true
+      h264_8bit: true
+      h264_10bit: true
+      hevc_8bit: true
+      hevc_10bit: true
+      vp9: true
+      av1: true
+    audio:
+      flac: true
+      mp3: true
+      aac: true
+      ac3: true
+      eac3: true
+      vorbis: true
+      dts: true
+      opus: true
+      alac: true
+    containers:
+      mp4: true
+      mkv: true
+      webm: true
+      ts: true
+      ogg: true

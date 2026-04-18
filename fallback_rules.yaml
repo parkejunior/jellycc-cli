@@ -1,0 +1,29 @@
+# Configuração de conversão inteligente para o CLI
+
+container: "mkv"
+
+video:
+  target: "h264_8bit"
+  encoder: "-c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p"
+
+audio:
+  # Formatos que consideramos ideais e NÃO precisam de conversão
+  acceptable:
+    - aac
+    - eac3
+    - flac
+  
+  # Regras de conversão se o codec original não estiver na lista acima
+  mappings:
+    ac3:
+      target: "eac3"
+      encoder: "-c:a eac3 -b:a 448k"
+    dts:
+      target: "eac3"
+      encoder: "-c:a eac3 -b:a 448k"
+    alac:
+      target: "flac"
+      encoder: "-c:a flac"
+    default:
+      target: "aac"
+      encoder: "-c:a aac -b:a 192k"
