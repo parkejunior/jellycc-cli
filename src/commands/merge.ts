@@ -1,4 +1,4 @@
-import { text, select, multiselect, cancel, note, outro } from '@clack/prompts';
+import { text, select, multiselect, groupMultiselect, cancel, note, outro } from '@clack/prompts';
 import pc from 'picocolors';
 import fs from 'fs';
 import path from 'path';
@@ -68,42 +68,82 @@ export async function mergeCommand(args: string[]) {
   }
 
   // --- 4. Interface Multiselect ---
-  const buildOptions = (info: any, fileLabel: string, fileIndex: number) => {
-    return info.streams.map((s: any) => {
-      const lang = s.tags && s.tags.language ? s.tags.language.toUpperCase() : 'UND';
-      let label = `[${s.codec_type.toUpperCase()}] ${s.codec_name} `;
-      if (s.codec_type === 'audio' || s.codec_type === 'subtitle') {
-        label += `(${lang}) `;
-      }
-      if (s.codec_type === 'video') {
-        label += `${s.width}x${s.height} `;
-      }
-      label += `- Arquivo ${fileLabel}`;
+  const parseFps = (fpsStr: string) => {
+    if (!fpsStr) return '??';
+    const parts = fpsStr.split('/');
+    if (parts.length === 2 && parseInt(parts[1]!) > 0) {
+      return (parseInt(parts[0]!) / parseInt(parts[1]!)).toFixed(2);
+    }
+    return parseFloat(fpsStr).toFixed(2);
+  };
 
-      return {
+  const buildGroupedOptions = (infoA: any, infoB: any) => {
+    const groups: Record<string, any[]> = {
+      '🎬 Vídeo': [],
+      '🔊 Áudio': [],
+      '💬 Legendas e Outros': []
+    };
+
+    const processStream = (s: any, fileLabel: string, fileIndex: number) => {
+      let label = '';
+      const lang = s.tags && s.tags.language ? s.tags.language.toUpperCase() : 'UND';
+      
+      if (s.codec_type === 'video') {
+        const fps = parseFps(s.r_frame_rate || s.avg_frame_rate);
+        const bitrate = s.bit_rate ? Math.round(parseInt(s.bit_rate) / 1000) + ' kbps' : 'N/A';
+        label = `[${s.codec_name}] ${s.width}x${s.height} @ ${fps}fps - ${bitrate}`;
+      } else if (s.codec_type === 'audio') {
+        const hz = s.sample_rate ? Math.round(parseInt(s.sample_rate) / 1000) + ' kHz' : 'N/A';
+        const bitrate = s.bit_rate ? Math.round(parseInt(s.bit_rate) / 1000) + ' kbps' : 'N/A';
+        const channels = s.channels === 6 ? '5.1' : s.channels === 2 ? 'Stereo' : s.channels;
+        label = `[${s.codec_name}] (${lang}) ${channels} Ch | ${hz} | ${bitrate}`;
+      } else if (s.codec_type === 'subtitle') {
+        const title = s.tags && s.tags.title ? ` - "${s.tags.title}"` : '';
+        label = `[${s.codec_name}] (${lang})${title}`;
+      } else {
+        label = `[${s.codec_type}] ${s.codec_name}`;
+      }
+      
+      label += ` - Arquivo ${fileLabel}`;
+
+      const option = {
         value: { fileIndex, streamIndex: s.index, type: s.codec_type, codec: s.codec_name },
         label: label,
       };
+
+      if (s.codec_type === 'video') groups['🎬 Vídeo']!.push(option);
+      else if (s.codec_type === 'audio') groups['🔊 Áudio']!.push(option);
+      else groups['💬 Legendas e Outros']!.push(option);
+    };
+
+    infoA.streams.forEach((s: any) => processStream(s, 'A', 0));
+    infoB.streams.forEach((s: any) => processStream(s, 'B', 1));
+
+    // Remove empty groups
+    Object.keys(groups).forEach(k => {
+      if (groups[k]!.length === 0) delete groups[k];
     });
+
+    return groups;
   };
 
-  const optionsA = buildOptions(infoA, 'A', 0);
-  const optionsB = buildOptions(infoB, 'B', 1);
+  const groupedOptions = buildGroupedOptions(infoA, infoB);
 
-  // Pré-selecionar o vídeo sugerido
-  const initialValues = [];
+  // Pré-selecionar o vídeo sugerido (se a biblioteca suportar, passamos em initialValues)
+  const initialValues: any[] = [];
   if (suggestedVideo === 'A' && vA) {
-    initialValues.push(optionsA.find((o: any) => o.value.type === 'video')?.value);
+    const val = groupedOptions['🎬 Vídeo']?.find((o: any) => o.value.fileIndex === 0)?.value;
+    if (val) initialValues.push(val);
   } else if (suggestedVideo === 'B' && vB) {
-    initialValues.push(optionsB.find((o: any) => o.value.type === 'video')?.value);
+    const val = groupedOptions['🎬 Vídeo']?.find((o: any) => o.value.fileIndex === 1)?.value;
+    if (val) initialValues.push(val);
   }
 
-  const allOptions = [...optionsA, ...optionsB];
-
-  const selectedStreams = onCancel(await multiselect({
+  const selectedStreams = onCancel(await groupMultiselect({
     message: `Selecione as faixas que deseja manter (Sugestão de vídeo: Arquivo ${suggestedVideo})`,
-    options: allOptions,
+    options: groupedOptions,
     required: true,
+    initialValues: initialValues.length > 0 ? initialValues : undefined,
   })) as any[];
 
   // --- 5. Mapeamento Cirúrgico e Injeção de Regras ---
