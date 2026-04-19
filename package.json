@@ -1,5 +1,5 @@
 {
-  "name": "jelly-bombshell",
+  "name": "jellycc-cli",
   "module": "index.ts",
   "type": "module",
   "private": true,

@@ -84,7 +84,7 @@ async function runDeepScan(filePath, totalDurationSec) {
 }
 
 async function main() {
-  intro(pc.inverse(' 🎬 Jellyfin Codec & Integrity Checker '));
+  intro(pc.inverse(' 🎬 JellyCC CLI - Jellyfin Codec & Integrity Checker '));
 
   const args = process.argv.slice(2);
   const deepScanFlag = args.includes('--deep-scan');

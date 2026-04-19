@@ -1,4 +1,4 @@
-# 🤖 Agent Directives: Jellyfin Codec & Integrity Checker
+# 🤖 Agent Directives: JellyCC CLI - Jellyfin Codec & Integrity Checker
 
 This document provides architectural context, coding standards, and directives for any AI agent working on this repository.
 

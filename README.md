@@ -1,6 +1,6 @@
-# 🎬 Jellyfin Codec & Integrity Checker
+# 🎬 JellyCC CLI - Jellyfin Codec & Integrity Checker
 
-Uma ferramenta de linha de comando (CLI) construída para analisar, diagnosticar e converter arquivos de mídia para máxima compatibilidade com o ecossistema Jellyfin (Direct Play). 
+Uma ferramenta de linha de comando (CLI) construída para analisar, diagnosticar e converter arquivos de mídia para máxima compatibilidade com o ecossistema Jellyfin (Direct Play).
 
 Este utilitário não apenas cruza as informações da mídia com uma matriz de compatibilidade de clientes (Chrome, Roku, Safari, Android, etc.), mas também realiza varreduras de integridade para evitar que arquivos corrompidos quebrem a reprodução no servidor.
 
@@ -30,17 +30,21 @@ Certifique-se de que os arquivos de configuração (`Jellyfin Codec Support.yaml
 ## 🎮 Como Usar
 
 Você pode iniciar a ferramenta de forma iterativa:
+
 ```bash
 bun run index.js
 ```
-*(A ferramenta aceita Drag & Drop de arquivos direto no terminal, removendo automaticamente as aspas simples/duplas inseridas pelo sistema).*
+
+_(A ferramenta aceita Drag & Drop de arquivos direto no terminal, removendo automaticamente as aspas simples/duplas inseridas pelo sistema)._
 
 Ou passar os argumentos diretamente:
+
 ```bash
 bun run index.js /caminho/para/o/filme.mkv
 ```
 
 Para iniciar com a varredura profunda ativada:
+
 ```bash
 bun run index.js --deep-scan /caminho/para/o/filme.mkv
 ```
