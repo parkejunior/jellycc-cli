@@ -6,6 +6,8 @@ import path from 'path';
 import YAML from 'yaml';
 import clipboardy from 'clipboardy';
 import { fileURLToPath } from 'url';
+import supportMatrix from './dist/matrix.json' with { type: 'json' };
+import fallbackRules from './dist/rules.json' with { type: 'json' };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -117,18 +119,6 @@ async function main() {
   } catch (err) {
     qsSpinner.stop(pc.red('✖ Quick Scan reprovado: O arquivo está danificado ou ilegível.'));
     cancel('Mídia corrompida. Abortando análise para evitar falhas no servidor.');
-    process.exit(1);
-  }
-
-  let supportMatrix, fallbackRules;
-  try {
-    const matrixPath = path.join(__dirname, 'jellyfin-codec-support.yaml');
-    const rulesPath = path.join(__dirname, 'fallback_rules.yaml');
-    
-    supportMatrix = YAML.parse(fs.readFileSync(matrixPath, 'utf8'));
-    fallbackRules = YAML.parse(fs.readFileSync(rulesPath, 'utf8'));
-  } catch (e) {
-    cancel('Erro ao ler os arquivos YAML na pasta do script.');
     process.exit(1);
   }
 

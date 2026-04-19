@@ -19,20 +19,29 @@ Este utilitário não apenas cruza as informações da mídia com uma matriz de 
 
 ## 📦 Instalação
 
-Clone o repositório e instale as dependências:
+Para instalar a ferramenta globalmente no seu sistema e poder usá-la a partir de qualquer diretório através do comando `jellycc`, utilize o script de instalação incluso.
 
-```bash
-bun install
-```
+> [!IMPORTANT]
+> Certifique-se de que o **FFmpeg** e o **FFprobe** estejam instalados no seu sistema de forma global, pois o JellyCC depende estritamente deles para realizar as análises e conversões.
 
-Certifique-se de que os arquivos de configuração (`Jellyfin Codec Support.yaml` e `fallback_rules.yaml`) estejam na raiz do projeto.
+1. Clone o repositório.
+2. Dê permissão de execução ao script (se necessário):
+   ```bash
+   chmod +x ./install.sh
+   ```
+3. Execute o script de instalação:
+   ```bash
+   ./install.sh
+   ```
+
+O script cuidará da conversão das configurações, da compilação do binário usando o Bun e da instalação global do executável no seu sistema.
 
 ## 🎮 Como Usar
 
-Você pode iniciar a ferramenta de forma iterativa:
+Após a instalação, você pode iniciar a ferramenta de forma iterativa:
 
 ```bash
-bun run index.js
+jellycc
 ```
 
 _(A ferramenta aceita Drag & Drop de arquivos direto no terminal, removendo automaticamente as aspas simples/duplas inseridas pelo sistema)._
@@ -40,13 +49,13 @@ _(A ferramenta aceita Drag & Drop de arquivos direto no terminal, removendo auto
 Ou passar os argumentos diretamente:
 
 ```bash
-bun run index.js /caminho/para/o/filme.mkv
+jellycc /caminho/para/o/filme.mkv
 ```
 
 Para iniciar com a varredura profunda ativada:
 
 ```bash
-bun run index.js --deep-scan /caminho/para/o/filme.mkv
+jellycc --deep-scan /caminho/para/o/filme.mkv
 ```
 
 ## ⚙️ Configuração
