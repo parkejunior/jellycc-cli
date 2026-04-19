@@ -6,7 +6,7 @@ import clipboardy from 'clipboardy';
 
 import { onCancel, sanitizePath } from '../utils/ui.ts';
 import { getMediaInfo } from '../utils/ffprobe.ts';
-import { runConversion } from '../utils/ffmpeg.ts';
+import { runConversion, getDynamicVideoEncoder, getDynamicAudioEncoder } from '../utils/ffmpeg.ts';
 
 import fallbackRules from '../../dist/rules.json' with { type: 'json' };
 
@@ -218,29 +218,47 @@ export async function mergeCommand(args: string[]) {
     if (codecName === 'h264') codecName = 'h264_8bit'; // naive
     
     if (codecName !== fallbackRules.video.target) {
-      vCodecArg = fallbackRules.video.encoder;
+      vCodecArg = getDynamicVideoEncoder();
     }
   }
 
   if (hasAudio) {
-    const aStreams = selectedStreams.filter(s => s.type === 'audio');
-    // For multiple audios we might need complex mapping or just apply to all:
-    // we'll check if ANY audio needs transcode, if so we might need per-stream or global
-    // Fallback applies to ALL audio streams generally with -c:a
     let needsAudioTranscode = false;
-    let targetEncoder = '';
+    let aCodecArgs: string[] = [];
+    let audioOutputIndex = 0;
     
-    for (const aStream of aStreams) {
-      if (!fallbackRules.audio.acceptable.includes(aStream.codec)) {
-        needsAudioTranscode = true;
-        const map = (fallbackRules.audio.mappings as any)[aStream.codec] || fallbackRules.audio.mappings.default;
-        targetEncoder = map.encoder;
-        break; // Assume all get the same encoder for now
+    for (const stream of selectedStreams) {
+      if (stream.type === 'audio') {
+        if (!fallbackRules.audio.acceptable.includes(stream.codec)) {
+          needsAudioTranscode = true;
+          const map = (fallbackRules.audio.mappings as any)[stream.codec] || fallbackRules.audio.mappings.default;
+          
+          const sourceInfo = stream.fileIndex === 0 ? infoA : infoB;
+          const fullStream = sourceInfo.streams.find((st: any) => st.index === stream.streamIndex);
+          
+          const dynamicEncoder = getDynamicAudioEncoder(fullStream, map.target);
+          
+          const parts = dynamicEncoder.split(' ');
+          let mappedEncoder = '';
+          for (let i = 0; i < parts.length; i++) {
+            if (parts[i] === '-c:a') {
+              mappedEncoder += `-c:a:${audioOutputIndex} ${parts[++i]} `;
+            } else if (parts[i] === '-b:a') {
+              mappedEncoder += `-b:a:${audioOutputIndex} ${parts[++i]} `;
+            } else {
+              mappedEncoder += parts[i] + ' ';
+            }
+          }
+          aCodecArgs.push(mappedEncoder.trim());
+        } else {
+          aCodecArgs.push(`-c:a:${audioOutputIndex} copy`);
+        }
+        audioOutputIndex++;
       }
     }
-
+    
     if (needsAudioTranscode) {
-      aCodecArg = targetEncoder;
+      aCodecArg = aCodecArgs.join(' ');
     }
   }
 

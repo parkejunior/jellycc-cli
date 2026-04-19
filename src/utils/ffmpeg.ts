@@ -9,6 +9,27 @@ export function parseFfmpegTime(timeStr: string) {
   return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
 }
 
+export function getDynamicVideoEncoder() {
+  return '-c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p';
+}
+
+export function getDynamicAudioEncoder(stream: any, targetCodec: string) {
+  const channels = stream?.channels || 2;
+  
+  if (targetCodec === 'flac') {
+    return '-c:a flac';
+  }
+  
+  if (targetCodec === 'eac3') {
+    const bitrate = Math.min(channels * 112, 768);
+    return `-c:a eac3 -b:a ${bitrate}k`;
+  }
+  
+  // default aac
+  const bitrate = channels * 112;
+  return `-c:a aac -b:a ${bitrate}k`;
+}
+
 export async function runDeepScan(filePath: string, totalDurationSec: number) {
   console.log(''); 
   const dsSpinner = spinner();

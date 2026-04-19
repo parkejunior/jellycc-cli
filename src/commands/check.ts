@@ -6,7 +6,7 @@ import clipboardy from 'clipboardy';
 
 import { onCancel, sanitizePath } from '../utils/ui.ts';
 import { runQuickScan, getMediaInfo } from '../utils/ffprobe.ts';
-import { runDeepScan, runConversion } from '../utils/ffmpeg.ts';
+import { runDeepScan, runConversion, getDynamicVideoEncoder, getDynamicAudioEncoder } from '../utils/ffmpeg.ts';
 
 import supportMatrix from '../../dist/matrix.json' with { type: 'json' };
 import fallbackRules from '../../dist/rules.json' with { type: 'json' };
@@ -129,12 +129,12 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
   if (isPerfect) {
     note(pc.green(`O arquivo já atende às suas regras ideais (${fallbackRules.container.toUpperCase()} / H.264 / Áudio Aceito). Nenhuma conversão é necessária!`), 'Sugestão de Conversão');
   } else {
-    const vCodecArg = isVideoCompatible ? '-c:v copy' : fallbackRules.video.encoder;
+    const vCodecArg = isVideoCompatible ? '-c:v copy' : getDynamicVideoEncoder();
     
     let aCodecArg = '-c:a copy';
     if (!isAudioCompatible) {
       const map = (fallbackRules.audio.mappings as any)[aKey] || fallbackRules.audio.mappings.default;
-      aCodecArg = map.encoder;
+      aCodecArg = getDynamicAudioEncoder(audioStream, map.target);
     }
     
     const dir = path.dirname(videoPath as string);
