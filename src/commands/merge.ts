@@ -129,6 +129,59 @@ export async function mergeCommand(args: string[]) {
 
   const groupedOptions = buildGroupedOptions(infoA, infoB);
 
+  // --- Resumo Lado a Lado ---
+  const formatDuration = (seconds: number) => {
+    if (!seconds || isNaN(seconds)) return 'N/A';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const formatSize = (bytes: number) => {
+    if (!bytes || isNaN(bytes)) return 'N/A';
+    const mb = bytes / (1024 * 1024);
+    if (mb > 1024) {
+      return (mb / 1024).toFixed(2) + ' GB';
+    }
+    return mb.toFixed(2) + ' MB';
+  };
+
+  const buildFileSummary = (info: any) => {
+    const duration = info.format?.duration ? formatDuration(parseFloat(info.format.duration)) : 'N/A';
+    const size = info.format?.size ? formatSize(parseInt(info.format.size)) : 'N/A';
+    
+    const videos = info.streams.filter((s: any) => s.codec_type === 'video');
+    const audios = info.streams.filter((s: any) => s.codec_type === 'audio');
+    const subs = info.streams.filter((s: any) => s.codec_type === 'subtitle');
+
+    const vSummary = videos.length > 0 ? `${videos[0].codec_name} (${videos[0].width}x${videos[0].height})` : 'Nenhum';
+    const aSummary = audios.length > 0 ? `${audios.length} faixa${audios.length > 1 ? 's' : ''} (${audios.map((a: any) => a.codec_name).join(', ')})` : 'Nenhuma';
+    const sSummary = subs.length > 0 ? `${subs.length} faixa${subs.length > 1 ? 's' : ''}` : 'Nenhuma';
+
+    return { duration, size, vSummary, aSummary, sSummary };
+  };
+
+  const sumA = buildFileSummary(infoA);
+  const sumB = buildFileSummary(infoB);
+
+  const pad = (str: string, len: number) => {
+    // Tratamento para caracteres invisíveis do picocolors se necessário, mas aqui só usamos texto puro.
+    return str.length > len ? str.substring(0, len - 3) + '...' : str.padEnd(len, ' ');
+  };
+
+  const compTable = [
+    `${pc.bold(pad('Info', 10))} | ${pc.bold(pad('Arquivo A (Base)', 30))} | ${pc.bold('Arquivo B (Alvo)')}`,
+    `${pad('----------', 10)}-|-${pad('------------------------------', 30)}-|------------------------------`,
+    `${pc.dim(pad('Duração', 10))} | ${pad(sumA.duration, 30)} | ${sumB.duration}`,
+    `${pc.dim(pad('Tamanho', 10))} | ${pad(sumA.size, 30)} | ${sumB.size}`,
+    `${pc.dim(pad('Vídeo', 10))} | ${pad(sumA.vSummary, 30)} | ${sumB.vSummary}`,
+    `${pc.dim(pad('Áudios', 10))} | ${pad(sumA.aSummary, 30)} | ${sumB.aSummary}`,
+    `${pc.dim(pad('Legendas', 10))} | ${pad(sumA.sSummary, 30)} | ${sumB.sSummary}`,
+  ].join('\n');
+
+  note(compTable, 'Comparação Lado a Lado');
+
   // Pré-selecionar o vídeo sugerido (se a biblioteca suportar, passamos em initialValues)
   const initialValues: any[] = [];
   if (suggestedVideo === 'A' && vA) {
