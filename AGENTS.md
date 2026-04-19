@@ -48,6 +48,10 @@ This is a Node.js/Bun CLI application designed to automate media server maintena
 - Keep comments strictly in Portuguese, maintaining a clear and direct tone.
 - Do not remove the Quick Scan function; it is a mandatory safeguard against malformed containers.
 
+### 5. Execution (Bun)
+
+- **Always use full paths for Bun:** When running commands or scripts, always use `~/.bun/bin/bun` and `~/.bun/bin/bunx` instead of just `bun` and `bunx`. This ensures agents use the correct executable.
+
 ## 🚀 Next Steps / Roadmap
 
 - Implement **Batch Processing Mode** to scan entire directories, summarize required transcodes, and execute them sequentially.
