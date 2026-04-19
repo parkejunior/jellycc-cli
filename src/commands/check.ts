@@ -1,94 +1,17 @@
-import { intro, outro, text, select, spinner, isCancel, cancel, note } from '@clack/prompts';
+import { text, select, cancel, note, outro } from '@clack/prompts';
 import pc from 'picocolors';
-import { execSync, spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import YAML from 'yaml';
 import clipboardy from 'clipboardy';
-import { fileURLToPath } from 'url';
-import supportMatrix from './dist/matrix.json' with { type: 'json' };
-import fallbackRules from './dist/rules.json' with { type: 'json' };
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { onCancel, sanitizePath } from '../utils/ui.ts';
+import { runQuickScan, getMediaInfo } from '../utils/ffprobe.ts';
+import { runDeepScan, runConversion } from '../utils/ffmpeg.ts';
 
-function onCancel(value) {
-  if (isCancel(value)) {
-    cancel('Operação cancelada.');
-    process.exit(0);
-  }
-  return value;
-}
+import supportMatrix from '../../dist/matrix.json' with { type: 'json' };
+import fallbackRules from '../../dist/rules.json' with { type: 'json' };
 
-const sanitizePath = (p) => p ? p.trim().replace(/^['"]|['"]$/g, '') : p;
-
-// Helper para converter "00:00:05.12" em segundos absolutos
-function parseFfmpegTime(timeStr) {
-  const parts = timeStr.split(':');
-  if (parts.length !== 3) return 0;
-  return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
-}
-
-// --- FUNÇÃO DO DEEP SCAN (AGORA ASSÍNCRONA COM PROGRESSO) ---
-async function runDeepScan(filePath, totalDurationSec) {
-  console.log(''); 
-  const dsSpinner = spinner();
-  dsSpinner.start('🔍 Iniciando Deep Scan...');
-
-  return new Promise((resolve) => {
-    // -v warning captura os erros; -stats força o ffmpeg a emitir o progresso
-    const ff = spawn('ffmpeg', ['-v', 'warning', '-stats', '-i', filePath, '-f', 'null', '-']);
-    let errorOutput = '';
-
-    ff.stderr.on('data', (data) => {
-      const str = data.toString();
-      
-      // Captura a tag "time=HH:MM:SS.ms" que o ffmpeg cospe no terminal
-      const timeMatch = str.match(/time=(\d{2}:\d{2}:\d{2}\.\d{2})/);
-      if (timeMatch && totalDurationSec > 0) {
-        const currentTime = parseFfmpegTime(timeMatch[1]);
-        let percent = Math.round((currentTime / totalDurationSec) * 100);
-        if (percent > 100) percent = 100; // Trava em 100% no finalzinho
-        
-        // Monta a barra de progresso visual [██████░░░░░░]
-        const barLength = 25;
-        const filled = Math.round((percent / 100) * barLength);
-        const empty = barLength - filled;
-        const bar = '█'.repeat(filled) + '░'.repeat(empty);
-
-        // Atualiza a mensagem do Clack em tempo real
-        dsSpinner.message(`🔍 Deep Scan em andamento: ${percent}% [${pc.cyan(bar)}]`);
-      }
-
-      // Filtra as linhas de atualização de stats para guardar apenas os erros reais
-      const lines = str.split(/[\r\n]+/);
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.startsWith('frame=') && !trimmed.startsWith('size=')) {
-          errorOutput += trimmed + '\n';
-        }
-      }
-    });
-
-    ff.on('close', (code) => {
-      if (errorOutput.trim()) {
-        dsSpinner.stop(pc.yellow('⚠ Deep Scan finalizado: Foram encontrados artefatos/erros na decodificação.'));
-        console.log(pc.dim(errorOutput.trim()));
-      } else if (code === 0) {
-        dsSpinner.stop(pc.green('✔ Deep Scan perfeito: Nenhum erro ou glitch encontrado no arquivo!'));
-      } else {
-        dsSpinner.stop(pc.red(`✖ Deep Scan falhou de forma crítica (Código ${code}).`));
-      }
-      console.log('');
-      resolve();
-    });
-  });
-}
-
-async function main() {
-  intro(pc.inverse(' 🎬 JellyCC CLI - Jellyfin Codec & Integrity Checker '));
-
-  const args = process.argv.slice(2);
+export async function checkCommand(args: string[]) {
   const deepScanFlag = args.includes('--deep-scan');
   let rawPathArg = args.find(a => a !== '--deep-scan');
   
@@ -111,43 +34,24 @@ async function main() {
     process.exit(1);
   }
 
-  const qsSpinner = spinner();
-  qsSpinner.start('Executando Quick Scan de integridade...');
-  try {
-    execSync(`ffprobe -v error -show_entries format -of default=noprint_wrappers=1 "${videoPath}"`, { stdio: 'pipe' });
-    qsSpinner.stop(pc.green('✔ Quick Scan aprovado: Estrutura do container intacta.'));
-  } catch (err) {
-    qsSpinner.stop(pc.red('✖ Quick Scan reprovado: O arquivo está danificado ou ilegível.'));
-    cancel('Mídia corrompida. Abortando análise para evitar falhas no servidor.');
-    process.exit(1);
-  }
+  // Quick Scan
+  runQuickScan(videoPath as string);
 
   const clients = Object.keys(supportMatrix.clients);
 
-  const s = spinner();
-  s.start('Analisando as entranhas do vídeo com ffprobe...');
-
-  let probeData;
-  try {
-    const cmd = `ffprobe -v quiet -print_format json -show_format -show_streams "${videoPath}"`;
-    const result = execSync(cmd, { encoding: 'utf-8' });
-    probeData = JSON.parse(result);
-  } catch (err) {
-    s.stop('Erro ao executar ffprobe JSON.');
-    process.exit(1);
-  }
-  s.stop('Análise de codec concluída!');
+  // FFprobe JSON info
+  const probeData = getMediaInfo(videoPath as string);
 
   // Extrai a duração total para passar para o Deep Scan
   const totalDuration = probeData.format && probeData.format.duration ? parseFloat(probeData.format.duration) : 0;
 
   const formatName = probeData.format.format_name;
-  const videoStream = probeData.streams.find(st => st.codec_type === 'video');
-  const audioStream = probeData.streams.find(st => st.codec_type === 'audio');
+  const videoStream = probeData.streams.find((st: any) => st.codec_type === 'video');
+  const audioStream = probeData.streams.find((st: any) => st.codec_type === 'audio');
   
-  const ext = path.extname(videoPath).toLowerCase().replace('.', '');
+  const ext = path.extname(videoPath as string).toLowerCase().replace('.', '');
 
-  const mapContainer = (fmt) => {
+  const mapContainer = (fmt: string) => {
     if (fmt.includes('matroska')) return 'mkv';
     if (fmt.includes('mp4') || fmt.includes('mov')) return 'mp4';
     if (fmt.includes('webm')) return 'webm';
@@ -156,7 +60,7 @@ async function main() {
     return ext; 
   };
 
-  const mapVideoCodec = (stream) => {
+  const mapVideoCodec = (stream: any) => {
     if (!stream) return null;
     let codec = stream.codec_name; 
     const is10bit = stream.pix_fmt && stream.pix_fmt.includes('10');
@@ -171,7 +75,7 @@ async function main() {
   const vKey = mapVideoCodec(videoStream);
   const aKey = audioStream ? audioStream.codec_name : null;
 
-  const formatResult = (status, key) => {
+  const formatResult = (status: any, key: any) => {
     if (!key) return pc.dim('N/A');
     if (status === true) return pc.green('✔ Direct Play');
     if (status === false) return pc.red('✖ Transcode');
@@ -180,14 +84,14 @@ async function main() {
   };
 
   let resultText = `
-${pc.bold('📁 Arquivo:')} ${path.basename(videoPath)}
+${pc.bold('📁 Arquivo:')} ${path.basename(videoPath as string)}
 ${pc.bold('📦 Container:')} ${cKey}  |  ${pc.bold('🎥 Vídeo:')} ${vKey}  |  ${pc.bold('🔊 Áudio:')} ${aKey}
 
 ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
 `;
 
   for (const client of clients) {
-    const matrix = supportMatrix.clients[client];
+    const matrix = (supportMatrix.clients as any)[client];
     const cStatus = matrix.containers[cKey];
     const vStatus = matrix.video[vKey];
     const aStatus = matrix.audio[aKey];
@@ -211,8 +115,7 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
   note(resultText.trim(), 'Resultados da Matriz Jellyfin');
 
   if (deepScanFlag) {
-    // Note o await aqui para respeitar a execução
-    await runDeepScan(videoPath, totalDuration);
+    await runDeepScan(videoPath as string, totalDuration);
     deepScanCompleted = true;
   }
 
@@ -230,15 +133,14 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
     
     let aCodecArg = '-c:a copy';
     if (!isAudioCompatible) {
-      const map = fallbackRules.audio.mappings[aKey] || fallbackRules.audio.mappings.default;
+      const map = (fallbackRules.audio.mappings as any)[aKey] || fallbackRules.audio.mappings.default;
       aCodecArg = map.encoder;
     }
     
-    const dir = path.dirname(videoPath);
-    const name = path.basename(videoPath, path.extname(videoPath));
+    const dir = path.dirname(videoPath as string);
+    const name = path.basename(videoPath as string, path.extname(videoPath as string));
     const outputPath = path.join(dir, `${name}_convertido.${fallbackRules.container}`);
 
-    // IMPLEMENTAÇÃO DOS NOVOS ARGUMENTOS DE COPY E THREADS
     ffmpegCmd = `ffmpeg -i "${videoPath}" -map 0 ${vCodecArg} ${aCodecArg} -c:s copy -threads 0 "${outputPath}"`;
     note(pc.yellow(ffmpegCmd), 'Comando FFmpeg Sugerido (Baseado nas suas Regras)');
   }
@@ -266,7 +168,7 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
     }));
 
     if (action === 'deep_scan') {
-      await runDeepScan(videoPath, totalDuration);
+      await runDeepScan(videoPath as string, totalDuration);
       deepScanCompleted = true; 
     } else {
       keepMenuOpen = false; 
@@ -281,9 +183,8 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
       outro(`Erro no clipboard. Comando:\n${pc.yellow(ffmpegCmd)}`);
     }
   } else if (action === 'run') {
-    console.log(pc.cyan('\nIniciando o FFmpeg... (Pressione Ctrl+C para cancelar)\n'));
     try {
-      execSync(ffmpegCmd, { stdio: 'inherit' });
+      runConversion(ffmpegCmd);
       outro(pc.green('✔ Arquivo convertido com sucesso! 🚀'));
     } catch (err) {
       console.error(pc.red('\nErro ou cancelamento durante a conversão.'));
@@ -296,5 +197,3 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
     outro('Verificação finalizada. 🚀');
   }
 }
-
-main().catch(console.error);

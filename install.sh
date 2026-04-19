@@ -10,7 +10,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "🎬 Compilando o JellyCC..."
-bun build ./index.ts --compile --outfile jellycc
+bun build ./src/index.ts --compile --outfile jellycc
 
 echo "📦 Movendo binário para a pasta do sistema..."
 mkdir -p ~/.local/bin
