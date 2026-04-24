@@ -1,4 +1,4 @@
-import { text, select, multiselect, groupMultiselect, cancel, note, outro } from '@clack/prompts';
+import { text, select, groupMultiselect, note, outro } from '@clack/prompts';
 import pc from 'picocolors';
 import fs from 'fs';
 import path from 'path';
@@ -7,6 +7,7 @@ import clipboardy from 'clipboardy';
 import { onCancel, sanitizePath } from '../utils/ui.ts';
 import { getMediaInfo } from '../utils/ffprobe.ts';
 import { runConversion, getDynamicVideoEncoder, getDynamicAudioEncoder } from '../utils/ffmpeg.ts';
+import { formatFps, formatDuration, formatSize, padLabel } from '../utils/formatters.ts';
 
 import fallbackRules from '../../dist/rules.json' with { type: 'json' };
 
@@ -57,7 +58,6 @@ export async function mergeCommand(args: string[]) {
 
   let suggestedVideo = 'A';
   if (vA && vB) {
-    // Regra simples: Maior resolução ou maior bitrate -> melhor
     const pixelsA = vA.width * vA.height;
     const pixelsB = vB.width * vB.height;
     if (pixelsB > pixelsA) {
@@ -68,15 +68,6 @@ export async function mergeCommand(args: string[]) {
   }
 
   // --- 4. Interface Multiselect ---
-  const parseFps = (fpsStr: string) => {
-    if (!fpsStr) return '??';
-    const parts = fpsStr.split('/');
-    if (parts.length === 2 && parseInt(parts[1]!) > 0) {
-      return (parseInt(parts[0]!) / parseInt(parts[1]!)).toFixed(2);
-    }
-    return parseFloat(fpsStr).toFixed(2);
-  };
-
   const buildGroupedOptions = (infoA: any, infoB: any) => {
     const groups: Record<string, any[]> = {
       '🎬 Vídeo': [],
@@ -89,7 +80,7 @@ export async function mergeCommand(args: string[]) {
       const lang = s.tags && s.tags.language ? s.tags.language.toUpperCase() : 'UND';
       
       if (s.codec_type === 'video') {
-        const fps = parseFps(s.r_frame_rate || s.avg_frame_rate);
+        const fps = formatFps(s.r_frame_rate || s.avg_frame_rate).replace(' fps', '');
         const bitrate = s.bit_rate ? Math.round(parseInt(s.bit_rate) / 1000) + ' kbps' : 'N/A';
         label = `[${s.codec_name}] ${s.width}x${s.height} @ ${fps}fps - ${bitrate}`;
       } else if (s.codec_type === 'audio') {
@@ -119,7 +110,6 @@ export async function mergeCommand(args: string[]) {
     infoA.streams.forEach((s: any) => processStream(s, 'A', 0));
     infoB.streams.forEach((s: any) => processStream(s, 'B', 1));
 
-    // Remove empty groups
     Object.keys(groups).forEach(k => {
       if (groups[k]!.length === 0) delete groups[k];
     });
@@ -130,23 +120,6 @@ export async function mergeCommand(args: string[]) {
   const groupedOptions = buildGroupedOptions(infoA, infoB);
 
   // --- Resumo Lado a Lado ---
-  const formatDuration = (seconds: number) => {
-    if (!seconds || isNaN(seconds)) return 'N/A';
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
-
-  const formatSize = (bytes: number) => {
-    if (!bytes || isNaN(bytes)) return 'N/A';
-    const mb = bytes / (1024 * 1024);
-    if (mb > 1024) {
-      return (mb / 1024).toFixed(2) + ' GB';
-    }
-    return mb.toFixed(2) + ' MB';
-  };
-
   const buildFileSummary = (info: any) => {
     const duration = info.format?.duration ? formatDuration(parseFloat(info.format.duration)) : 'N/A';
     const size = info.format?.size ? formatSize(parseInt(info.format.size)) : 'N/A';
@@ -165,24 +138,18 @@ export async function mergeCommand(args: string[]) {
   const sumA = buildFileSummary(infoA);
   const sumB = buildFileSummary(infoB);
 
-  const pad = (str: string, len: number) => {
-    // Tratamento para caracteres invisíveis do picocolors se necessário, mas aqui só usamos texto puro.
-    return str.length > len ? str.substring(0, len - 3) + '...' : str.padEnd(len, ' ');
-  };
-
   const compTable = [
-    `${pc.bold(pad('Info', 10))} | ${pc.bold(pad('Arquivo A (Base)', 30))} | ${pc.bold('Arquivo B (Alvo)')}`,
-    `${pad('----------', 10)}-|-${pad('------------------------------', 30)}-|------------------------------`,
-    `${pc.dim(pad('Duração', 10))} | ${pad(sumA.duration, 30)} | ${sumB.duration}`,
-    `${pc.dim(pad('Tamanho', 10))} | ${pad(sumA.size, 30)} | ${sumB.size}`,
-    `${pc.dim(pad('Vídeo', 10))} | ${pad(sumA.vSummary, 30)} | ${sumB.vSummary}`,
-    `${pc.dim(pad('Áudios', 10))} | ${pad(sumA.aSummary, 30)} | ${sumB.aSummary}`,
-    `${pc.dim(pad('Legendas', 10))} | ${pad(sumA.sSummary, 30)} | ${sumB.sSummary}`,
+    `${pc.bold(padLabel('Info', 10))} | ${pc.bold(padLabel('Arquivo A (Base)', 30))} | ${pc.bold('Arquivo B (Alvo)')}`,
+    `${padLabel('----------', 10)}-|-${padLabel('------------------------------', 30)}-|------------------------------`,
+    `${pc.dim(padLabel('Duração', 10))} | ${padLabel(sumA.duration, 30)} | ${sumB.duration}`,
+    `${pc.dim(padLabel('Tamanho', 10))} | ${padLabel(sumA.size, 30)} | ${sumB.size}`,
+    `${pc.dim(padLabel('Vídeo', 10))} | ${padLabel(sumA.vSummary, 30)} | ${sumB.vSummary}`,
+    `${pc.dim(padLabel('Áudios', 10))} | ${padLabel(sumA.aSummary, 30)} | ${sumB.aSummary}`,
+    `${pc.dim(padLabel('Legendas', 10))} | ${padLabel(sumA.sSummary, 30)} | ${sumB.sSummary}`,
   ].join('\n');
 
   note(compTable, 'Comparação Lado a Lado');
 
-  // Pré-selecionar o vídeo sugerido (se a biblioteca suportar, passamos em initialValues)
   const initialValues: any[] = [];
   if (suggestedVideo === 'A' && vA) {
     const val = groupedOptions['🎬 Vídeo']?.find((o: any) => o.value.fileIndex === 0)?.value;
@@ -211,11 +178,8 @@ export async function mergeCommand(args: string[]) {
 
   if (hasVideo) {
     const vStream = selectedStreams.find(s => s.type === 'video');
-    // Map video codec to simpler name just like check.ts, actually fallbackRules.video.target handles it.
-    // Simplifying: we just check if it's not the target.
-    // For now, if we don't have pix_fmt we just assume 8-bit. We can refine later.
     let codecName = vStream.codec;
-    if (codecName === 'h264') codecName = 'h264_8bit'; // naive
+    if (codecName === 'h264') codecName = 'h264_8bit'; 
     
     if (codecName !== fallbackRules.video.target) {
       vCodecArg = getDynamicVideoEncoder();
@@ -262,7 +226,6 @@ export async function mergeCommand(args: string[]) {
     }
   }
 
-  // -c:s copy is always applied
   const sCodecArg = '-c:s copy';
 
   selectedStreams.forEach(s => {
