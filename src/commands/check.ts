@@ -7,6 +7,7 @@ import clipboardy from 'clipboardy';
 import { onCancel, sanitizePath } from '../utils/ui.ts';
 import { runQuickScan, getMediaInfo } from '../utils/ffprobe.ts';
 import { runDeepScan, runConversion, getDynamicVideoEncoder, getDynamicAudioEncoder } from '../utils/ffmpeg.ts';
+import { formatFps, formatBitrate, getBitDepth, formatSampleRate, formatChannels, padLabel } from '../utils/formatters.ts';
 
 import supportMatrix from '../../dist/matrix.json' with { type: 'json' };
 import fallbackRules from '../../dist/rules.json' with { type: 'json' };
@@ -34,15 +35,10 @@ export async function checkCommand(args: string[]) {
     process.exit(1);
   }
 
-  // Quick Scan
   runQuickScan(videoPath as string);
 
   const clients = Object.keys(supportMatrix.clients);
-
-  // FFprobe JSON info
   const probeData = getMediaInfo(videoPath as string);
-
-  // Extrai a duração total para passar para o Deep Scan
   const totalDuration = probeData.format && probeData.format.duration ? parseFloat(probeData.format.duration) : 0;
 
   const formatName = probeData.format.format_name;
@@ -124,25 +120,86 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
   const isAudioCompatible = fallbackRules.audio.acceptable.includes(aKey);
 
   const isPerfect = isContainerCompatible && isVideoCompatible && isAudioCompatible;
+  const modLines: string[] = [];
 
-  let ffmpegCmd = '';
-  if (isPerfect) {
-    note(pc.green(`O arquivo já atende às suas regras ideais (${fallbackRules.container.toUpperCase()} / H.264 / Áudio Aceito). Nenhuma conversão é necessária!`), 'Sugestão de Conversão');
+  // 1. Resumo do Container
+  modLines.push(pc.bold('📦 CONTAINER'));
+  if (cKey !== fallbackRules.container) {
+    modLines.push(`  ${padLabel('Formato:')} ${pc.dim(cKey.toUpperCase())} ➔ ${pc.yellow(fallbackRules.container.toUpperCase())}`);
   } else {
-    const vCodecArg = isVideoCompatible ? '-c:v copy' : getDynamicVideoEncoder();
-    
-    let aCodecArg = '-c:a copy';
-    if (!isAudioCompatible) {
-      const map = (fallbackRules.audio.mappings as any)[aKey] || fallbackRules.audio.mappings.default;
-      aCodecArg = getDynamicAudioEncoder(audioStream, map.target);
-    }
-    
-    const dir = path.dirname(videoPath as string);
-    const name = path.basename(videoPath as string, path.extname(videoPath as string));
-    const outputPath = path.join(dir, `${name}_convertido.${fallbackRules.container}`);
+    modLines.push(`  ${padLabel('Formato:')} ${pc.green(cKey.toUpperCase() + ' ✔')}`);
+  }
+  modLines.push('');
 
-    ffmpegCmd = `ffmpeg -i "${videoPath}" -map 0 ${vCodecArg} ${aCodecArg} -c:s copy -threads 0 "${outputPath}"`;
-    note(pc.yellow(ffmpegCmd), 'Comando FFmpeg Sugerido (Baseado nas suas Regras)');
+  // 2. Resumo Detalhado de Vídeo
+  if (videoStream) {
+    modLines.push(pc.bold('🎥 VÍDEO'));
+    const vFps = formatFps(videoStream.r_frame_rate || videoStream.avg_frame_rate);
+    const vBitrate = formatBitrate(videoStream.bit_rate);
+    const vDepth = getBitDepth(videoStream);
+    const vRes = `${videoStream.width || '?'}x${videoStream.height || '?'}`;
+    const vCodecOriginal = vKey ? vKey.toUpperCase() : 'DESCONHECIDO';
+
+    if (isVideoCompatible) {
+      modLines.push(`  ${padLabel('Codec:')} ${pc.green(vCodecOriginal + ' ✔')}`);
+      modLines.push(`  ${padLabel('Resolução:')} ${pc.dim(vRes)}`);
+      modLines.push(`  ${padLabel('FPS:')} ${pc.dim(vFps)}`);
+      modLines.push(`  ${padLabel('Bit Depth:')} ${pc.dim(vDepth)}`);
+      modLines.push(`  ${padLabel('Bitrate:')} ${pc.dim(vBitrate)}`);
+    } else {
+      modLines.push(`  ${padLabel('Codec:')} ${pc.dim(vCodecOriginal)} ➔ ${pc.yellow('H.264')}`);
+      modLines.push(`  ${padLabel('Resolução:')} ${pc.dim(vRes)}`);
+      modLines.push(`  ${padLabel('FPS:')} ${pc.dim(vFps)}`);
+      modLines.push(`  ${padLabel('Bit Depth:')} ${vDepth === '8-bit' ? pc.dim('8-bit') : `${pc.dim(vDepth)} ➔ ${pc.yellow('8-bit')}`}`);
+      modLines.push(`  ${padLabel('Bitrate:')} ${pc.dim(vBitrate)} ➔ ${pc.yellow('Visually Lossless (CRF 18)')}`);
+    }
+    modLines.push('');
+  }
+
+  // 3. Resumo Detalhado de Áudio
+  if (audioStream) {
+    modLines.push(pc.bold('🔊 ÁUDIO'));
+    const aSampleRate = formatSampleRate(audioStream.sample_rate);
+    const aBitrate = formatBitrate(audioStream.bit_rate);
+    const audioChannels = audioStream.channels || 2;
+    const aChannelsStr = formatChannels(audioChannels);
+    const aCodecOriginal = aKey ? aKey.toUpperCase() : 'DESCONHECIDO';
+
+    if (isAudioCompatible) {
+      modLines.push(`  ${padLabel('Codec:')} ${pc.green(aCodecOriginal + ' ✔')}`);
+      modLines.push(`  ${padLabel('Canais:')} ${pc.dim(aChannelsStr)}`);
+      modLines.push(`  ${padLabel('Sample:')} ${pc.dim(aSampleRate)}`);
+      modLines.push(`  ${padLabel('Bitrate:')} ${pc.dim(aBitrate)}`);
+    } else {
+      const map = (fallbackRules.audio.mappings as any)[aKey as string] || fallbackRules.audio.mappings.default;
+      const targetBitrate = map.target === 'flac' ? 'Lossless' : `${audioChannels * 112} kbps`;
+      
+      modLines.push(`  ${padLabel('Codec:')} ${pc.dim(aCodecOriginal)} ➔ ${pc.yellow(map.target.toUpperCase())}`);
+      modLines.push(`  ${padLabel('Canais:')} ${pc.dim(aChannelsStr)}`);
+      modLines.push(`  ${padLabel('Sample:')} ${pc.dim(aSampleRate)}`);
+      modLines.push(`  ${padLabel('Bitrate:')} ${pc.dim(aBitrate)} ➔ ${pc.yellow(targetBitrate)}`);
+    }
+  }
+
+  note(modLines.join('\n').trimEnd(), 'Ação Planejada (Detalhada)');
+
+  const vCodecArg = isVideoCompatible ? '-c:v copy' : getDynamicVideoEncoder();
+  let aCodecArg = '-c:a copy';
+  if (!isAudioCompatible) {
+    const map = (fallbackRules.audio.mappings as any)[aKey as string] || fallbackRules.audio.mappings.default;
+    aCodecArg = getDynamicAudioEncoder(audioStream, map.target);
+  }
+  
+  const dir = path.dirname(videoPath as string);
+  const name = path.basename(videoPath as string, path.extname(videoPath as string));
+  const outputPath = path.join(dir, `${name}_convertido.${fallbackRules.container}`);
+
+  let ffmpegCmd = `ffmpeg -i "${videoPath}" -map 0 ${vCodecArg} ${aCodecArg} -c:s copy -threads 0 "${outputPath}"`;
+
+  if (isPerfect) {
+    note(pc.green('✔ O arquivo já atende perfeitamente às regras. A conversão fará apenas uma cópia limpa das faixas (Remux).'), 'Pronto para uso');
+  } else {
+    note(pc.yellow(ffmpegCmd), 'Comando FFmpeg Sugerido');
   }
 
   let action;
