@@ -230,47 +230,51 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
 
   // 5. Construtor Cirúrgico do Comando FFmpeg
   let codecArgs: string[] = [];
-  let vIdx = 0, aIdx = 0, sIdx = 0;
+  let excludeArgs: string[] = []; // Novo array para descartar as fotos
+  let vInIdx = 0, vOutIdx = 0;
+  let aInIdx = 0, aOutIdx = 0;
+  let sInIdx = 0, sOutIdx = 0;
 
   for (const stream of probeData.streams) {
     if (stream.codec_type === 'video') {
       if (isAttachedPic(stream)) {
-        // Se for uma foto/pôster, apenas faça a cópia! Não converta em H.264
-        codecArgs.push(`-c:v:${vIdx} copy`);
+        // Mapeamento Negativo: Arranca a capa do filme do arquivo final
+        excludeArgs.push(`-map -0:v:${vInIdx}`);
       } else {
         if (isVideoCompatible) {
-          codecArgs.push(`-c:v:${vIdx} copy`);
+          codecArgs.push(`-c:v:${vOutIdx} copy`);
         } else {
-          // Substitui o argumento global pelo index exato (ex: -c:v:0)
-          codecArgs.push(getDynamicVideoEncoder().replace('-c:v', `-c:v:${vIdx}`));
+          codecArgs.push(getDynamicVideoEncoder().replace('-c:v', `-c:v:${vOutIdx}`));
         }
+        vOutIdx++;
       }
-      vIdx++;
+      vInIdx++;
     } else if (stream.codec_type === 'audio') {
       if (fallbackRules.audio.acceptable.includes(stream.codec_name)) {
-        codecArgs.push(`-c:a:${aIdx} copy`);
+        codecArgs.push(`-c:a:${aOutIdx} copy`);
       } else {
         const map = (fallbackRules.audio.mappings as any)[stream.codec_name] || fallbackRules.audio.mappings.default;
         const dynamicEncoder = getDynamicAudioEncoder(stream, map.target);
         
-        // Injeta o index da faixa no comando (ex: -c:a:1 eac3 -b:a:1 640k)
         const parts = dynamicEncoder.split(' ');
         let mappedEncoder = '';
         for (let i = 0; i < parts.length; i++) {
           if (parts[i] === '-c:a') {
-            mappedEncoder += `-c:a:${aIdx} ${parts[++i]} `;
+            mappedEncoder += `-c:a:${aOutIdx} ${parts[++i]} `;
           } else if (parts[i] === '-b:a') {
-            mappedEncoder += `-b:a:${aIdx} ${parts[++i]} `;
+            mappedEncoder += `-b:a:${aOutIdx} ${parts[++i]} `;
           } else {
             mappedEncoder += parts[i] + ' ';
           }
         }
         codecArgs.push(mappedEncoder.trim());
       }
-      aIdx++;
+      aOutIdx++;
+      aInIdx++;
     } else if (stream.codec_type === 'subtitle') {
-      codecArgs.push(`-c:s:${sIdx} copy`);
-      sIdx++;
+      codecArgs.push(`-c:s:${sOutIdx} copy`);
+      sOutIdx++;
+      sInIdx++;
     }
   }
 
@@ -278,7 +282,8 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
   const name = path.basename(videoPath as string, path.extname(videoPath as string));
   const outputPath = path.join(dir, `${name}.jellycc.${fallbackRules.container}`);
 
-  let ffmpegCmd = `ffmpeg -i "${videoPath}" -map 0 ${codecArgs.join(' ')} -threads 0 "${outputPath}"`;
+  // Injeta o excludeArgs logo depois do -map 0
+  let ffmpegCmd = `ffmpeg -i "${videoPath}" -map 0 ${excludeArgs.join(' ')} ${codecArgs.join(' ')} -threads 0 "${outputPath}"`;
 
   if (isPerfect) {
     note(pc.green('✔ O arquivo já atende perfeitamente às regras. A conversão fará apenas uma cópia limpa das faixas (Remux).'), 'Pronto para uso');

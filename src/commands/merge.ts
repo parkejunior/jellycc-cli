@@ -89,6 +89,9 @@ export async function mergeCommand(args: string[]) {
     };
 
     const processStream = (s: any, fileLabel: string, fileIndex: number) => {
+      // Ignora as capas de filme para não sujar as opções de Merge
+      if (s.codec_type === 'video' && ['mjpeg', 'png', 'bmp'].includes(s.codec_name)) return;
+
       let label = '';
       const lang = s.tags && s.tags.language ? s.tags.language.toUpperCase() : 'UND';
       
