@@ -2,11 +2,10 @@ import { text, select, groupMultiselect, note, outro } from '@clack/prompts';
 import pc from 'picocolors';
 import fs from 'fs';
 import path from 'path';
-import clipboardy from 'clipboardy';
 
 import { onCancel, sanitizePath } from '../utils/ui.ts';
 import { getMediaInfo } from '../utils/ffprobe.ts';
-import { runConversion, getDynamicVideoEncoder, getDynamicAudioEncoder } from '../utils/ffmpeg.ts';
+import { runDeepScan, runConversion, getDynamicVideoEncoder, getDynamicAudioEncoder } from '../utils/ffmpeg.ts';
 import { formatFps, formatDuration, formatSize, padLabel, isImageSubtitle, formatSubtitleCodec } from '../utils/formatters.ts';
 
 import fallbackRules from '../../dist/rules.json' with { type: 'json' };
@@ -269,29 +268,28 @@ export async function mergeCommand(args: string[]) {
   const action = onCancel(await select({
     message: 'O que deseja fazer?',
     options: [
-      { label: '🚀 Executar a conversão agora', value: 'run' },
-      { label: '📋 Copiar comando', value: 'copy' },
+      { label: '🚀 Executar conversão + 🔍 Deep Scan', value: 'run_and_scan' },
+      { label: '🚀 Executar conversão apenas', value: 'run' },
       { label: '❌ Sair', value: 'exit' },
     ]
   }));
 
-  if (action === 'run') {
+  if (action === 'run' || action === 'run_and_scan') {
     try {
       await runConversion(ffmpegCmd, totalDuration, totalFrames);
-      outro(pc.green('✔ Arquivo mesclado com sucesso! 🚀'));
+      
+      if (action === 'run_and_scan') {
+        // Roda o Deep Scan apontando para o arquivo mesclado (outputPath)
+        await runDeepScan(outputPath, totalDuration);
+      }
+
+      outro(pc.green('✔ Arquivo mesclado e verificado com sucesso! 🚀'));
     } catch (err) {
       console.error(pc.red('\nErro ou cancelamento durante o merge.'));
       process.exit(1);
     }
-  } else if (action === 'copy') {
-    try {
-      clipboardy.writeSync(ffmpegCmd);
-      outro(pc.green('✔ Comando copiado com sucesso!'));
-    } catch (err) {
-      outro(`Erro no clipboard. Comando:\n${pc.yellow(ffmpegCmd)}`);
-    }
   } else {
-    console.log(`\n${pc.dim('Comando limpo:')}\n${pc.yellow(ffmpegCmd)}\n`);
+    console.log(`\n${pc.dim('Comando limpo gerado:')}\n${pc.yellow(ffmpegCmd)}\n`);
     outro('Operação finalizada.');
   }
 }

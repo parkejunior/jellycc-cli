@@ -2,7 +2,6 @@ import { text, select, cancel, note, outro } from '@clack/prompts';
 import pc from 'picocolors';
 import fs from 'fs';
 import path from 'path';
-import clipboardy from 'clipboardy';
 
 import { onCancel, sanitizePath } from '../utils/ui.ts';
 import { runQuickScan, getMediaInfo } from '../utils/ffprobe.ts';
@@ -298,12 +297,12 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
     const menuOptions = [];
     
     if (!isPerfect) {
-      menuOptions.push({ label: '📋 Copiar comando de conversão', value: 'copy' });
-      menuOptions.push({ label: '🚀 Executar a conversão agora', value: 'run' });
+      menuOptions.push({ label: '🚀 Executar conversão + 🔍 Deep Scan', value: 'run_and_scan' });
+      menuOptions.push({ label: '🚀 Executar conversão apenas', value: 'run' });
     }
     
     if (!deepScanCompleted) {
-      menuOptions.push({ label: '🔍 Rodar Deep Scan (Verificar falhas no bitstream)', value: 'deep_scan' });
+      menuOptions.push({ label: '🔍 Rodar Deep Scan (Verificar falhas no arquivo original)', value: 'deep_scan' });
     }
     
     menuOptions.push({ label: '❌ Sair', value: 'exit' });
@@ -321,24 +320,23 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
     }
   }
 
-  if (action === 'copy') {
-    try {
-      clipboardy.writeSync(ffmpegCmd);
-      outro(pc.green('✔ Comando copiado com sucesso!'));
-    } catch (err) {
-      outro(`Erro no clipboard. Comando:\n${pc.yellow(ffmpegCmd)}`);
-    }
-  } else if (action === 'run') {
+  if (action === 'run' || action === 'run_and_scan') {
     try {
       await runConversion(ffmpegCmd, totalDuration, totalFrames);
-      outro(pc.green('✔ Arquivo convertido com sucesso! 🚀'));
+      
+      if (action === 'run_and_scan') {
+        // Roda o Deep Scan apontando para o arquivo NOVO (outputPath)
+        await runDeepScan(outputPath, totalDuration);
+      }
+      
+      outro(pc.green('✔ Operação finalizada com sucesso! 🚀'));
     } catch (err) {
-      console.error(pc.red('\nErro ou cancelamento durante a conversão.'));
+      console.error(pc.red('\nErro ou cancelamento durante a operação.'));
       process.exit(1);
     }
   } else if (action === 'exit') {
     if (!isPerfect) {
-      console.log(`\n${pc.dim('Comando limpo:')}\n${pc.yellow(ffmpegCmd)}\n`);
+      console.log(`\n${pc.dim('Comando limpo gerado:')}\n${pc.yellow(ffmpegCmd)}\n`);
     }
     outro('Verificação finalizada. 🚀');
   }
