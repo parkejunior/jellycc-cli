@@ -234,7 +234,7 @@ export async function mergeCommand(args: string[]) {
 
   const dir = path.dirname(pathA as string);
   const name = path.basename(pathA as string, path.extname(pathA as string));
-  const outputPath = path.join(dir, `${name}_merged.${fallbackRules.container}`);
+  const outputPath = path.join(dir, `${name}.jellycc_merged.${fallbackRules.container}`);
 
   const ffmpegCmd = `ffmpeg -i "${pathA}" -i "${pathB}" ${mapArgs.join(' ')} ${vCodecArg} ${aCodecArg} ${sCodecArg} -threads 0 "${outputPath}"`;
 

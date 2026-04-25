@@ -248,7 +248,7 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
 
   const dir = path.dirname(videoPath as string);
   const name = path.basename(videoPath as string, path.extname(videoPath as string));
-  const outputPath = path.join(dir, `${name}_convertido.${fallbackRules.container}`);
+  const outputPath = path.join(dir, `${name}.jellycc.${fallbackRules.container}`);
 
   let ffmpegCmd = `ffmpeg -i "${videoPath}" -map 0 ${codecArgs.join(' ')} -threads 0 "${outputPath}"`;
 
