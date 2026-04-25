@@ -74,3 +74,19 @@ export const formatSubtitleCodec = (codecName: string | undefined): string => {
   if (lower === 'dvd_subtitle' || lower === 'vobsub') return 'VobSub';
   return codecName.toUpperCase();
 };
+
+export const isAttachedPic = (st: any) => {
+  return st.disposition?.attached_pic === 1 || ['mjpeg', 'png', 'bmp'].includes(st.codec_name);
+};
+
+export const calculateTotalFrames = (videoStream: any, totalDurationSec: number): number => {
+  if (videoStream && totalDurationSec > 0) {
+    const fpsStr = videoStream.r_frame_rate || videoStream.avg_frame_rate;
+    if (fpsStr) {
+      const parts = fpsStr.split('/');
+      const fps = parts.length === 2 && parseInt(parts[1]!) > 0 ? parseInt(parts[0]!) / parseInt(parts[1]!) : parseFloat(fpsStr);
+      if (!isNaN(fps)) return Math.round(totalDurationSec * fps);
+    }
+  }
+  return 0;
+};
