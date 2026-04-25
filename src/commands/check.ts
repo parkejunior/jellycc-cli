@@ -41,9 +41,12 @@ export async function checkCommand(args: string[]) {
   const probeData = getMediaInfo(videoPath as string);
   const totalDuration = probeData.format && probeData.format.duration ? parseFloat(probeData.format.duration) : 0;
 
+  // Filtros inteligentes para ignorar capas de filme (mjpeg, png) como vídeo principal
+  const isAttachedPic = (st: any) => st.disposition?.attached_pic === 1 || ['mjpeg', 'png', 'bmp'].includes(st.codec_name);
+  
   const formatName = probeData.format.format_name;
-  const videoStream = probeData.streams.find((st: any) => st.codec_type === 'video');
-  const audioStream = probeData.streams.find((st: any) => st.codec_type === 'audio');
+  const videoStream = probeData.streams.find((st: any) => st.codec_type === 'video' && !isAttachedPic(st));
+  const audioStreams = probeData.streams.filter((st: any) => st.codec_type === 'audio');
   
   const ext = path.extname(videoPath as string).toLowerCase().replace('.', '');
 
@@ -69,7 +72,7 @@ export async function checkCommand(args: string[]) {
 
   const cKey = mapContainer(formatName);
   const vKey = mapVideoCodec(videoStream);
-  const aKey = audioStream ? audioStream.codec_name : null;
+  const aKey = audioStreams.length > 0 ? audioStreams[0].codec_name : null; // Apenas para o badge principal
 
   const formatResult = (status: any, key: any) => {
     if (!key) return pc.dim('N/A');
@@ -81,7 +84,7 @@ export async function checkCommand(args: string[]) {
 
   let resultText = `
 ${pc.bold('📁 Arquivo:')} ${path.basename(videoPath as string)}
-${pc.bold('📦 Container:')} ${cKey}  |  ${pc.bold('🎥 Vídeo:')} ${vKey}  |  ${pc.bold('🔊 Áudio:')} ${aKey}
+${pc.bold('📦 Container:')} ${cKey}  |  ${pc.bold('🎥 Vídeo:')} ${vKey}  |  ${pc.bold('🔊 Áudio(s):')} ${audioStreams.length} faixa(s)
 
 ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
 `;
@@ -90,7 +93,7 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
     const matrix = (supportMatrix.clients as any)[client];
     const cStatus = matrix.containers[cKey];
     const vStatus = matrix.video[vKey];
-    const aStatus = matrix.audio[aKey];
+    const aStatus = matrix.audio[aKey]; // Baseado na faixa 1 para resumo
 
     let badge = '';
     if (cStatus === true && vStatus === true && aStatus === true) {
@@ -117,7 +120,8 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
 
   const isContainerCompatible = cKey === fallbackRules.container;
   const isVideoCompatible = vKey === fallbackRules.video.target;
-  const isAudioCompatible = fallbackRules.audio.acceptable.includes(aKey);
+  // O áudio só é compatível se TODAS as faixas forem aceitáveis
+  const isAudioCompatible = audioStreams.every((st: any) => fallbackRules.audio.acceptable.includes(st.codec_name));
 
   const isPerfect = isContainerCompatible && isVideoCompatible && isAudioCompatible;
   const modLines: string[] = [];
@@ -156,52 +160,97 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
     modLines.push('');
   }
 
-  // 3. Resumo Detalhado de Áudio
-  if (audioStream) {
+  // 3. Resumo Detalhado de Múltiplos Áudios
+  if (audioStreams.length > 0) {
     modLines.push(pc.bold('🔊 ÁUDIO'));
-    const aSampleRate = formatSampleRate(audioStream.sample_rate);
-    const aBitrate = formatBitrate(audioStream.bit_rate);
-    const audioChannels = audioStream.channels || 2;
-    const aChannelsStr = formatChannels(audioChannels);
-    const aCodecOriginal = aKey ? aKey.toUpperCase() : 'DESCONHECIDO';
+    audioStreams.forEach((aStream: any, index: number) => {
+      const aSampleRate = formatSampleRate(aStream.sample_rate);
+      const aBitrate = formatBitrate(aStream.bit_rate);
+      const audioChannels = aStream.channels || 2;
+      const aChannelsStr = formatChannels(audioChannels);
+      const aCodecOriginal = aStream.codec_name ? aStream.codec_name.toUpperCase() : 'DESCONHECIDO';
+      
+      const trackLbl = audioStreams.length > 1 ? `Faixa ${index + 1}:` : 'Codec:';
+      const isThisAudioCompatible = fallbackRules.audio.acceptable.includes(aStream.codec_name);
 
-    if (isAudioCompatible) {
-      modLines.push(`  ${padLabel('Codec:')} ${pc.green(aCodecOriginal + ' ✔')}`);
-      modLines.push(`  ${padLabel('Canais:')} ${pc.dim(aChannelsStr)}`);
-      modLines.push(`  ${padLabel('Sample:')} ${pc.dim(aSampleRate)}`);
-      modLines.push(`  ${padLabel('Bitrate:')} ${pc.dim(aBitrate)}`);
-    } else {
-      const map = (fallbackRules.audio.mappings as any)[aKey as string] || fallbackRules.audio.mappings.default;
-      
-      let targetBitrate = 'Lossless';
-      if (map.target !== 'flac') {
-        const sourceKbps = audioStream.bit_rate ? Math.round(parseInt(audioStream.bit_rate) / 1000) : Infinity;
-        let finalKbps = Math.min(audioChannels * 112, sourceKbps);
-        if (map.target === 'eac3') finalKbps = Math.min(finalKbps, 768);
-        targetBitrate = `${finalKbps} kbps`;
+      if (isThisAudioCompatible) {
+        modLines.push(`  ${padLabel(trackLbl)} ${pc.green(aCodecOriginal + ' ✔')}`);
+        modLines.push(`  ${padLabel('Canais:')} ${pc.dim(aChannelsStr)}`);
+        modLines.push(`  ${padLabel('Sample:')} ${pc.dim(aSampleRate)}`);
+        modLines.push(`  ${padLabel('Bitrate:')} ${pc.dim(aBitrate)}`);
+      } else {
+        const map = (fallbackRules.audio.mappings as any)[aStream.codec_name] || fallbackRules.audio.mappings.default;
+        
+        let targetBitrateStr = 'Lossless';
+        if (map.target !== 'flac') {
+          const sourceKbps = aStream.bit_rate ? Math.round(parseInt(aStream.bit_rate) / 1000) : Infinity;
+          let finalKbps = Math.min(audioChannels * 112, sourceKbps);
+          if (map.target === 'eac3') finalKbps = Math.min(finalKbps, 768);
+          targetBitrateStr = `${finalKbps} kbps`;
+        }
+
+        modLines.push(`  ${padLabel(trackLbl)} ${pc.dim(aCodecOriginal)} ➔ ${pc.yellow(map.target.toUpperCase())}`);
+        modLines.push(`  ${padLabel('Canais:')} ${pc.dim(aChannelsStr)}`);
+        modLines.push(`  ${padLabel('Sample:')} ${pc.dim(aSampleRate)}`);
+        modLines.push(`  ${padLabel('Bitrate:')} ${pc.dim(aBitrate)} ➔ ${pc.yellow(targetBitrateStr)}`);
       }
-      
-      modLines.push(`  ${padLabel('Codec:')} ${pc.dim(aCodecOriginal)} ➔ ${pc.yellow(map.target.toUpperCase())}`);
-      modLines.push(`  ${padLabel('Canais:')} ${pc.dim(aChannelsStr)}`);
-      modLines.push(`  ${padLabel('Sample:')} ${pc.dim(aSampleRate)}`);
-      modLines.push(`  ${padLabel('Bitrate:')} ${pc.dim(aBitrate)} ➔ ${pc.yellow(targetBitrate)}`);
-    }
+      modLines.push(''); 
+    });
   }
 
   note(modLines.join('\n').trimEnd(), 'Ação Planejada (Detalhada)');
 
-  const vCodecArg = isVideoCompatible ? '-c:v copy' : getDynamicVideoEncoder();
-  let aCodecArg = '-c:a copy';
-  if (!isAudioCompatible) {
-    const map = (fallbackRules.audio.mappings as any)[aKey as string] || fallbackRules.audio.mappings.default;
-    aCodecArg = getDynamicAudioEncoder(audioStream, map.target);
+  // 4. Construtor Cirúrgico do Comando FFmpeg
+  let codecArgs: string[] = [];
+  let vIdx = 0, aIdx = 0, sIdx = 0;
+
+  for (const stream of probeData.streams) {
+    if (stream.codec_type === 'video') {
+      if (isAttachedPic(stream)) {
+        // Se for uma foto/pôster, apenas faça a cópia! Não converta em H.264
+        codecArgs.push(`-c:v:${vIdx} copy`);
+      } else {
+        if (isVideoCompatible) {
+          codecArgs.push(`-c:v:${vIdx} copy`);
+        } else {
+          // Substitui o argumento global pelo index exato (ex: -c:v:0)
+          codecArgs.push(getDynamicVideoEncoder().replace('-c:v', `-c:v:${vIdx}`));
+        }
+      }
+      vIdx++;
+    } else if (stream.codec_type === 'audio') {
+      if (fallbackRules.audio.acceptable.includes(stream.codec_name)) {
+        codecArgs.push(`-c:a:${aIdx} copy`);
+      } else {
+        const map = (fallbackRules.audio.mappings as any)[stream.codec_name] || fallbackRules.audio.mappings.default;
+        const dynamicEncoder = getDynamicAudioEncoder(stream, map.target);
+        
+        // Injeta o index da faixa no comando (ex: -c:a:1 eac3 -b:a:1 640k)
+        const parts = dynamicEncoder.split(' ');
+        let mappedEncoder = '';
+        for (let i = 0; i < parts.length; i++) {
+          if (parts[i] === '-c:a') {
+            mappedEncoder += `-c:a:${aIdx} ${parts[++i]} `;
+          } else if (parts[i] === '-b:a') {
+            mappedEncoder += `-b:a:${aIdx} ${parts[++i]} `;
+          } else {
+            mappedEncoder += parts[i] + ' ';
+          }
+        }
+        codecArgs.push(mappedEncoder.trim());
+      }
+      aIdx++;
+    } else if (stream.codec_type === 'subtitle') {
+      codecArgs.push(`-c:s:${sIdx} copy`);
+      sIdx++;
+    }
   }
-  
+
   const dir = path.dirname(videoPath as string);
   const name = path.basename(videoPath as string, path.extname(videoPath as string));
   const outputPath = path.join(dir, `${name}_convertido.${fallbackRules.container}`);
 
-  let ffmpegCmd = `ffmpeg -i "${videoPath}" -map 0 ${vCodecArg} ${aCodecArg} -c:s copy -threads 0 "${outputPath}"`;
+  let ffmpegCmd = `ffmpeg -i "${videoPath}" -map 0 ${codecArgs.join(' ')} -threads 0 "${outputPath}"`;
 
   if (isPerfect) {
     note(pc.green('✔ O arquivo já atende perfeitamente às regras. A conversão fará apenas uma cópia limpa das faixas (Remux).'), 'Pronto para uso');
