@@ -91,7 +91,73 @@ export async function runDeepScan(filePath: string, totalDurationSec: number) {
   });
 }
 
-export function runConversion(ffmpegCmd: string) {
-  console.log(pc.cyan('\nIniciando o FFmpeg... (Pressione Ctrl+C para cancelar)\n'));
-  execSync(ffmpegCmd, { stdio: 'inherit' });
+export async function runConversion(ffmpegCmd: string, totalDurationSec: number, totalFrames: number = 0) {
+  return new Promise<void>((resolve, reject) => {
+    console.log('');
+    const convSpinner = spinner();
+    convSpinner.start('Preparando conversão...');
+
+    const safeCmd = ffmpegCmd.includes(' -y ') ? ffmpegCmd : ffmpegCmd.replace('ffmpeg ', 'ffmpeg -y ');
+    const ff = spawn(safeCmd, { shell: true });
+    
+    let tailLog: string[] = [];
+    let lastBar = '[░░░░░░░░░░░░░░░░░░░░░░░░░] 0%';
+    let stderrBuffer = '';
+
+    ff.stderr.on('data', (data) => {
+      stderrBuffer += data.toString();
+      const lines = stderrBuffer.split(/[\r\n]+/);
+      stderrBuffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        tailLog.push(trimmed);
+        if (tailLog.length > 10) {
+          tailLog.shift();
+        }
+
+        // Tenta achar o tempo (Plano A) ou os frames processados (Plano B)
+        const timeMatch = trimmed.match(/time=\s*(\d{2}:\d{2}:\d{2}[\.\d]*)/);
+        const frameMatch = trimmed.match(/frame=\s*(\d+)/);
+
+        let percent = -1;
+
+        if (timeMatch && totalDurationSec > 0) {
+          const currentTime = parseFfmpegTime(timeMatch[1]);
+          percent = Math.round((currentTime / totalDurationSec) * 100);
+        } else if (frameMatch && totalFrames > 0) {
+          const currentFrame = parseInt(frameMatch[1], 10);
+          percent = Math.round((currentFrame / totalFrames) * 100);
+        }
+
+        // Desenha a barra se tivermos uma porcentagem válida
+        if (percent >= 0) {
+          if (percent > 100) percent = 100;
+          const barLength = 25;
+          const filled = Math.round((percent / 100) * barLength);
+          const empty = barLength - filled;
+          lastBar = `[${pc.cyan('█'.repeat(filled) + '░'.repeat(empty))}] ${percent}%`;
+        }
+
+        convSpinner.message(`Conversão em andamento:\n${lastBar}\n\n${pc.dim(tailLog.join('\n'))}`);
+      }
+    });
+
+    ff.on('close', (code) => {
+      if (code === 0) {
+        convSpinner.stop(pc.green('✔ Conversão finalizada com sucesso!'));
+        resolve();
+      } else {
+        convSpinner.stop(pc.red(`✖ Erro durante a conversão (Código ${code}).`));
+        reject(new Error('FFmpeg falhou'));
+      }
+    });
+
+    ff.on('error', (err) => {
+      convSpinner.stop(pc.red(`✖ Falha ao tentar iniciar o processo do FFmpeg: ${err.message}`));
+      reject(err);
+    });
+  });
 }

@@ -48,6 +48,17 @@ export async function checkCommand(args: string[]) {
   const videoStream = probeData.streams.find((st: any) => st.codec_type === 'video' && !isAttachedPic(st));
   const audioStreams = probeData.streams.filter((st: any) => st.codec_type === 'audio');
   
+  // Cálculo do Total de Frames para a Barra de Progresso
+  let totalFrames = 0;
+  if (videoStream && totalDuration > 0) {
+    const fpsStr = videoStream.r_frame_rate || videoStream.avg_frame_rate;
+    if (fpsStr) {
+      const parts = fpsStr.split('/');
+      const fps = parts.length === 2 && parseInt(parts[1]!) > 0 ? parseInt(parts[0]!) / parseInt(parts[1]!) : parseFloat(fpsStr);
+      if (!isNaN(fps)) totalFrames = Math.round(totalDuration * fps);
+    }
+  }
+  
   const ext = path.extname(videoPath as string).toLowerCase().replace('.', '');
 
   const mapContainer = (fmt: string) => {
@@ -314,7 +325,7 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
     }
   } else if (action === 'run') {
     try {
-      runConversion(ffmpegCmd);
+      await runConversion(ffmpegCmd, totalDuration, totalFrames);
       outro(pc.green('✔ Arquivo convertido com sucesso! 🚀'));
     } catch (err) {
       console.error(pc.red('\nErro ou cancelamento durante a conversão.'));

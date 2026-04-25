@@ -39,6 +39,19 @@ export async function mergeCommand(args: string[]) {
   // --- 2. Análise Dupla ---
   const infoA = getMediaInfo(pathA as string);
   const infoB = getMediaInfo(pathB as string);
+  const totalDuration = infoA.format && infoA.format.duration ? parseFloat(infoA.format.duration) : 0;
+
+  // Cálculo do Total de Frames para a Barra de Progresso
+  let totalFrames = 0;
+  const vStreamRef = infoA.streams.find((s: any) => s.codec_type === 'video' && s.codec_name !== 'mjpeg');
+  if (vStreamRef && totalDuration > 0) {
+    const fpsStr = vStreamRef.r_frame_rate || vStreamRef.avg_frame_rate;
+    if (fpsStr) {
+      const parts = fpsStr.split('/');
+      const fps = parts.length === 2 && parseInt(parts[1]!) > 0 ? parseInt(parts[0]!) / parseInt(parts[1]!) : parseFloat(fpsStr);
+      if (!isNaN(fps)) totalFrames = Math.round(totalDuration * fps);
+    }
+  }
 
   // --- 3. O "Juiz" de Qualidade Visual ---
   const getVideoStreamInfo = (info: any) => {
@@ -261,7 +274,7 @@ export async function mergeCommand(args: string[]) {
 
   if (action === 'run') {
     try {
-      runConversion(ffmpegCmd);
+      await runConversion(ffmpegCmd, totalDuration, totalFrames);
       outro(pc.green('✔ Arquivo mesclado com sucesso! 🚀'));
     } catch (err) {
       console.error(pc.red('\nErro ou cancelamento durante o merge.'));
