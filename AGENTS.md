@@ -1,56 +1,35 @@
-# 🤖 Agent Directives: JellyCC CLI - Jellyfin Codec & Integrity Checker
+# 🤖 Agent Directives: JellyCC CLI
 
-This document provides architectural context, coding standards, and directives for any AI agent working on this repository. **Read these constraints carefully before modifying the codebase.**
+This document provides architectural context, coding standards, and directives for any AI agent modifying this repository. **Read these constraints carefully.**
 
 ## 🎯 Project Context
-
-This is a Node.js/Bun CLI application (written in TypeScript) designed to automate media server maintenance. It features a modular architecture supporting two primary operations:
-
-1. **`check`**: Inspects a single video file, checks its compatibility against a client matrix, verifies file integrity, and suggests optimized FFmpeg conversion commands.
-2. **`merge`**: Performs interactive remuxing of two files, automatically electing the best video stream and allowing the user to select audio/subtitle streams to preserve.
+A Node.js/Bun CLI application (TypeScript) designed to automate media server maintenance, ensuring absolute *Direct Play* compatibility for Jellyfin. It features two primary operations:
+1. **`check`**: Inspects a single video file, verifies integrity, checks compatibility, and suggests precise FFmpeg conversions.
+2. **`merge`**: Interactive remuxing of multiple files, automatically electing the best video stream base.
 
 ## 🏗️ Tech Stack
+- **Runtime:** Bun (`type: "module"`)
+- **CLI UI:** `@clack/prompts` & `picocolors`
+- **System Interaction:** `child_process` (execSync, spawn), `fs`, `path`
+- **Data Parsing:** `yaml` (Source of truth) -> Compiled to `json` at build time.
 
-- **Runtime:** Bun
-- **Language:** TypeScript (`.ts`)
-- **Module System:** ES Modules (ESM) `type: "module"`
-- **CLI UI:** `@clack/prompts` (Bombshell)
-- **Styling:** `picocolors`
-- **System Interaction:** `child_process` (execSync, spawn), `fs`, `path`, `clipboardy`
-- **Data Parsing & Build:** `yaml` (Source of truth) -> Compiled to `json` at build time.
+## 📜 Architectural Rules & Constraints (Strict)
 
-## 📜 Architectural Rules & Constraints
+### 1. Separation of Concerns (Clean Code)
+- **Commands (`src/commands/`)**: Must remain thin orchestrators. They only gather data, trigger UI, and execute processes.
+- **FFmpeg Builder (`src/utils/builder.ts`)**: All complex FFmpeg string construction, stream mapping (`-map`), and codec assignments (`-c:v`, `-c:a`) must be isolated here.
+- **Universal UI (`src/utils/ui.ts`)**: The execution menu and async process triggers must be handled by `handleExecutionMenu`.
+- **Formatters (`src/utils/formatters.ts`)**: Codec translations, subtitle burn-in warnings (PGS/VobSub), and math calculations (e.g., total frames) belong here.
 
-### 1. Build Step & Configurations (Strict Rule)
+### 2. Media Handling (FFmpeg)
+- **Passthrough is Sacred:** Always prioritize `-c:v copy` and `-c:a copy` if the stream is already compatible.
+- **Dynamic Engine (`ffmpeg.ts`):** Never hardcode transcoder bitrates. Use `getDynamicVideoEncoder()` (Visually Lossless CRF 18) and `getDynamicAudioEncoder()` (calculates bitrate per channel without exceeding the source bitrate).
+- **Surgical Mapping:** Attached pictures (MJPEG/PNG covers) must be excluded using negative mapping (`-map -0:v:X`) to prevent FFmpeg's 30,000 FPS container bug.
+- **Async Execution:** Long-running tasks (Conversion, Deep Scan) must use `spawn`. Parse `stderr` in real-time to render Clack progress bars and tail logs without flooding the terminal.
 
-- **DO NOT read `.yaml` files at runtime.** The application relies on a build step (`prebuild.ts`) that converts `fallback_rules.yaml` and `jellyfin-codec-support.yaml` into `.json` files inside the `dist/` folder.
-- All runtime code must import the configurations from `../../dist/matrix.json` and `../../dist/rules.json` using the `with { type: 'json' }` import assertion.
+### 3. Build & Configurations
+- **DO NOT read `.yaml` at runtime.** The application relies on `../../dist/matrix.json` and `../../dist/rules.json` (using `with { type: 'json' }` import assertions).
 
-### 2. FFmpeg & Dynamic Quality Engine
-
-- **Passthrough is Sacred:** Always prioritize `-c:v copy` and `-c:a copy` when streams are already compatible. Do not force recoding unless strictly necessary to avoid generation loss.
-- **Dynamic Encoders:** Do not hardcode bitrates or presets for transcodes. Always use `getDynamicVideoEncoder()` (which aims for Visually Lossless quality via CRF 18) and `getDynamicAudioEncoder()` (which calculates bitrates based on channel count) located in `src/utils/ffmpeg.ts`.
-- **Media Preservation:** Always include `-map 0` (preserve all streams) or explicit stream mapping, and `-c:s copy` (preserve subtitles) when building ffmpeg conversion strings.
-- **Execution:** - For quick data extraction, use `execSync` with `ffprobe`.
-  - For long-running tasks (like Deep Scan), use `spawn` and parse `stderr` to extract the `time=HH:MM:SS.ms` string for real-time progress bars via Clack `spinner()`.
-  - For interactive conversions where the user needs to see the native output, use `execSync(cmd, { stdio: 'inherit' })`.
-
-### 3. Path Management
-
-- Use the `sanitizePath()` function before `fs.existsSync` to handle file paths dropped into Linux terminals (which are often wrapped in single/double quotes).
-
-### 4. UI & Interaction (Clack Prompts)
-
-- Do not use standard `console.log()` for main UI elements. Rely on Clack's primitives (`intro`, `outro`, `note`, `spinner`, `select`, `multiselect`, `text`).
-- Ensure graceful exits using the custom `onCancel` wrapper when a user triggers `Ctrl+C`.
-- When copying commands to the clipboard, account for `@clack/prompts` formatting (avoid copying the visual `|` borders).
-
-### 5. Execution Context (Bun)
-
-- **Always use full paths for Bun in background scripts:** When running commands or scripts in automation, assume paths like `~/.bun/bin/bun` and `~/.bun/bin/bunx` to ensure agents use the correct executable globally.
-
-### 6. Code Style
-
-- Keep logic functional and procedural. Avoid over-engineering with complex OOP structures.
-- Keep comments and CLI output **strictly in Portuguese**, maintaining a clear, direct, and user-friendly tone.
-- Do not remove the Quick Scan function; it is a mandatory safeguard against malformed containers.
+### 4. Code Style
+- Keep logic functional and procedural. Avoid complex OOP structures.
+- CLI output, prompts, and user-facing logs must be **strictly in Brazilian Portuguese (pt-BR)**.
