@@ -172,7 +172,14 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
       modLines.push(`  ${padLabel('Bitrate:')} ${pc.dim(aBitrate)}`);
     } else {
       const map = (fallbackRules.audio.mappings as any)[aKey as string] || fallbackRules.audio.mappings.default;
-      const targetBitrate = map.target === 'flac' ? 'Lossless' : `${audioChannels * 112} kbps`;
+      
+      let targetBitrate = 'Lossless';
+      if (map.target !== 'flac') {
+        const sourceKbps = audioStream.bit_rate ? Math.round(parseInt(audioStream.bit_rate) / 1000) : Infinity;
+        let finalKbps = Math.min(audioChannels * 112, sourceKbps);
+        if (map.target === 'eac3') finalKbps = Math.min(finalKbps, 768);
+        targetBitrate = `${finalKbps} kbps`;
+      }
       
       modLines.push(`  ${padLabel('Codec:')} ${pc.dim(aCodecOriginal)} ➔ ${pc.yellow(map.target.toUpperCase())}`);
       modLines.push(`  ${padLabel('Canais:')} ${pc.dim(aChannelsStr)}`);

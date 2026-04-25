@@ -15,19 +15,25 @@ export function getDynamicVideoEncoder() {
 
 export function getDynamicAudioEncoder(stream: any, targetCodec: string) {
   const channels = stream?.channels || 2;
+  // Extrai o bitrate original em kbps (se existir)
+  const sourceBitrate = stream?.bit_rate ? Math.round(parseInt(stream.bit_rate) / 1000) : Infinity;
   
   if (targetCodec === 'flac') {
     return '-c:a flac';
   }
   
+  // Calcula o ideal (112 por canal), mas NUNCA ultrapassa o que já existe no arquivo original
+  let idealBitrate = channels * 112;
+  let targetBitrate = Math.min(idealBitrate, sourceBitrate);
+  
   if (targetCodec === 'eac3') {
-    const bitrate = Math.min(channels * 112, 768);
-    return `-c:a eac3 -b:a ${bitrate}k`;
+    // Mantém o teto de segurança de 768k do EAC3
+    targetBitrate = Math.min(targetBitrate, 768);
+    return `-c:a eac3 -b:a ${targetBitrate}k`;
   }
   
   // default aac
-  const bitrate = channels * 112;
-  return `-c:a aac -b:a ${bitrate}k`;
+  return `-c:a aac -b:a ${targetBitrate}k`;
 }
 
 export async function runDeepScan(filePath: string, totalDurationSec: number) {
