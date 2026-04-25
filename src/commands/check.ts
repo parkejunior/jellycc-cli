@@ -7,7 +7,7 @@ import clipboardy from 'clipboardy';
 import { onCancel, sanitizePath } from '../utils/ui.ts';
 import { runQuickScan, getMediaInfo } from '../utils/ffprobe.ts';
 import { runDeepScan, runConversion, getDynamicVideoEncoder, getDynamicAudioEncoder } from '../utils/ffmpeg.ts';
-import { formatFps, formatBitrate, getBitDepth, formatSampleRate, formatChannels, padLabel } from '../utils/formatters.ts';
+import { formatFps, formatBitrate, getBitDepth, formatSampleRate, formatChannels, padLabel, isImageSubtitle, formatSubtitleCodec } from '../utils/formatters.ts';
 
 import supportMatrix from '../../dist/matrix.json' with { type: 'json' };
 import fallbackRules from '../../dist/rules.json' with { type: 'json' };
@@ -198,9 +198,26 @@ ${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}
     });
   }
 
+  // 4. Resumo de Legendas
+  const subStreams = probeData.streams.filter((st: any) => st.codec_type === 'subtitle');
+  if (subStreams.length > 0) {
+    modLines.push(pc.bold('💬 LEGENDAS'));
+    subStreams.forEach((sStream: any, index: number) => {
+      const lang = sStream.tags?.language ? sStream.tags.language.toUpperCase() : 'UND';
+      const codec = formatSubtitleCodec(sStream.codec_name);
+      
+      if (!isImageSubtitle(sStream.codec_name)) {
+        modLines.push(`  Faixa ${index + 1}: ${pc.green(codec + ' ✔')} | Idioma: ${pc.dim(lang)} | Status: ${pc.green('Direct Play Seguro')}`);
+      } else {
+        modLines.push(`  Faixa ${index + 1}: ${pc.yellow(codec + ' ⚠')} | Idioma: ${pc.dim(lang)} | Status: ${pc.yellow('Risco de Burn-in (Transcoding)')}`);
+      }
+    });
+    modLines.push('');
+  }
+
   note(modLines.join('\n').trimEnd(), 'Ação Planejada (Detalhada)');
 
-  // 4. Construtor Cirúrgico do Comando FFmpeg
+  // 5. Construtor Cirúrgico do Comando FFmpeg
   let codecArgs: string[] = [];
   let vIdx = 0, aIdx = 0, sIdx = 0;
 

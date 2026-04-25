@@ -7,7 +7,7 @@ import clipboardy from 'clipboardy';
 import { onCancel, sanitizePath } from '../utils/ui.ts';
 import { getMediaInfo } from '../utils/ffprobe.ts';
 import { runConversion, getDynamicVideoEncoder, getDynamicAudioEncoder } from '../utils/ffmpeg.ts';
-import { formatFps, formatDuration, formatSize, padLabel } from '../utils/formatters.ts';
+import { formatFps, formatDuration, formatSize, padLabel, isImageSubtitle, formatSubtitleCodec } from '../utils/formatters.ts';
 
 import fallbackRules from '../../dist/rules.json' with { type: 'json' };
 
@@ -90,7 +90,16 @@ export async function mergeCommand(args: string[]) {
         label = `[${s.codec_name}] (${lang}) ${channels} Ch | ${hz} | ${bitrate}`;
       } else if (s.codec_type === 'subtitle') {
         const title = s.tags && s.tags.title ? ` - "${s.tags.title}"` : '';
-        label = `[${s.codec_name}] (${lang})${title}`;
+        let subStatus = "";
+        if (isImageSubtitle(s.codec_name)) {
+          subStatus = pc.yellow(
+            " ⚠ Risco de Burn-in (Prefira buscar um SRT externo)"
+          );
+        } else {
+          subStatus = pc.green(" ✔ Seguro");
+        }
+        const cleanCodec = formatSubtitleCodec(s.codec_name);
+        label = `[${cleanCodec}] (${lang})${title}${subStatus}`;
       } else {
         label = `[${s.codec_type}] ${s.codec_name}`;
       }
