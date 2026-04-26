@@ -30,14 +30,19 @@ export function buildCheckCommand(selectedStreams: any[], probeData: any, fallba
     }
   }
   
-  return `ffmpeg -i "${videoPath}" ${mapArgs.join(' ')} ${codecArgs.join(' ')} -threads 0 "${outputPath}"`;
+  return `ffmpeg -i "${videoPath}" ${mapArgs.join(' ')} ${codecArgs.join(' ')} -metadata encoded_by="JellyCC" -threads 0 "${outputPath}"`;
 }
 
-export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any, fallbackRules: any, pathA: string, pathB: string, outputPath: string) {
+export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any, fallbackRules: any, pathA: string, pathB: string, outputPath: string, delayMs: number = 0, applyShortest: boolean = false) {
   let mapArgs: string[] = [];
   let vCodecArg = '-c:v copy';
   let aCodecArgs: string[] = [];
   const sCodecArg = '-c:s copy';
+
+  let offsetA = '';
+  let offsetB = '';
+  if (delayMs > 0) offsetB = `-itsoffset ${delayMs / 1000} `;
+  else if (delayMs < 0) offsetA = `-itsoffset ${Math.abs(delayMs) / 1000} `;
 
   const hasVideo = selectedStreams.some((s: any) => s.type === 'video');
   const hasAudio = selectedStreams.some((s: any) => s.type === 'audio');
@@ -73,6 +78,7 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
   });
 
   const aCodecArg = aCodecArgs.length > 0 ? aCodecArgs.join(' ') : '-c:a copy';
+  const shortestArg = applyShortest ? '-shortest ' : '';
 
-  return `ffmpeg -i "${pathA}" -i "${pathB}" ${mapArgs.join(' ')} ${vCodecArg} ${aCodecArg} ${sCodecArg} -metadata encoded_by="JellyCC" -threads 0 "${outputPath}"`;
+  return `ffmpeg ${offsetA}-i "${pathA}" ${offsetB}-i "${pathB}" ${mapArgs.join(' ')} ${vCodecArg} ${aCodecArg} ${sCodecArg} ${shortestArg}-metadata encoded_by="JellyCC" -threads 0 "${outputPath}"`;
 }

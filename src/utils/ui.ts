@@ -23,6 +23,7 @@ export async function handleExecutionMenu(options: {
   deepScanCompleted?: boolean;
   isMerge?: boolean;
   allowStreamSelection?: boolean;
+  allowSyncAdjustment?: boolean;
 }): Promise<{ action: string, deepScanCompleted: boolean }> {
   let action;
   let keepMenuOpen = true;
@@ -41,6 +42,10 @@ export async function handleExecutionMenu(options: {
       menuOptions.push({ label: '🎛️  Modificar faixas (Abrir painel de seleção)', value: 'select_streams' });
     }
 
+    if (options.allowSyncAdjustment) {
+      menuOptions.push({ label: '⏱️  Ajustar Sincronia / Corte Final', value: 'adjust_sync' });
+    }
+
     if (!dsCompleted) {
       menuOptions.push({ label: '🔍 Rodar Deep Scan (Verificar falhas no arquivo original)', value: 'deep_scan' });
     }
@@ -57,6 +62,8 @@ export async function handleExecutionMenu(options: {
       dsCompleted = true;
     } else if (action === 'select_streams') {
       return { action: 'select_streams', deepScanCompleted: dsCompleted };
+    } else if (action === 'adjust_sync') {
+      return { action: 'adjust_sync', deepScanCompleted: dsCompleted };
     } else {
       keepMenuOpen = false;
     }

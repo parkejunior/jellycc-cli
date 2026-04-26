@@ -1,4 +1,4 @@
-import { text, groupMultiselect, note } from '@clack/prompts';
+import { text, groupMultiselect, note, confirm } from '@clack/prompts';
 import pc from 'picocolors';
 import fs from 'fs';
 import path from 'path';
@@ -36,10 +36,11 @@ export async function mergeCommand(args: string[]) {
 
   const infoA = getMediaInfo(pathA as string);
   const infoB = getMediaInfo(pathB as string);
-  const totalDuration = infoA.format && infoA.format.duration ? parseFloat(infoA.format.duration) : 0;
+  const durA = infoA.format?.duration ? parseFloat(infoA.format.duration) : 0;
+  const durB = infoB.format?.duration ? parseFloat(infoB.format.duration) : 0;
 
   const vStreamRef = infoA.streams.find((s: any) => s.codec_type === 'video' && s.codec_name !== 'mjpeg');
-  const totalFrames = calculateTotalFrames(vStreamRef, totalDuration);
+  const totalFrames = calculateTotalFrames(vStreamRef, Math.max(durA, durB));
 
   const getVideoStreamInfo = (info: any) => {
     const stream = info.streams.find((s: any) => s.codec_type === 'video');
@@ -57,8 +58,10 @@ export async function mergeCommand(args: string[]) {
     if (pixelsB > pixelsA || (pixelsB === pixelsA && vB.bitrate > vA.bitrate)) suggestedVideo = 'B';
   }
 
-  const buildGroupedOptions = (infoA: any, infoB: any) => {
+  const buildGroupedOptions = (infoA: any, infoB: any, currentSelected?: any[]) => {
     const groups: Record<string, any[]> = { '🎬 Vídeo': [], '🔊 Áudio': [], '💬 Legendas e Outros': [] };
+    const initialValues: any[] = [];
+
     const processStream = (s: any, fileLabel: string, fileIndex: number) => {
       if (s.codec_type === 'video' && ['mjpeg', 'png', 'bmp'].includes(s.codec_name)) return;
       let label = '';
@@ -80,20 +83,28 @@ export async function mergeCommand(args: string[]) {
         label = `[${s.codec_type}] ${s.codec_name}`;
       }
       
-      const option = { value: { fileIndex, streamIndex: s.index, type: s.codec_type, codec: s.codec_name }, label: `${label} - Arquivo ${fileLabel}` };
+      const optionValue = { fileIndex, streamIndex: s.index, type: s.codec_type, codec: s.codec_name };
+      const option = { value: optionValue, label: `${label} - Arquivo ${fileLabel}` };
+      
       if (s.codec_type === 'video') groups['🎬 Vídeo']!.push(option);
       else if (s.codec_type === 'audio') groups['🔊 Áudio']!.push(option);
       else groups['💬 Legendas e Outros']!.push(option);
+
+      if (currentSelected) {
+        if (currentSelected.some((cs: any) => cs.fileIndex === fileIndex && cs.streamIndex === s.index)) {
+          initialValues.push(optionValue);
+        }
+      } else {
+        if (suggestedVideo === fileLabel && s.codec_type === 'video') initialValues.push(optionValue);
+      }
     };
 
     infoA.streams.forEach((s: any) => processStream(s, 'A', 0));
     infoB.streams.forEach((s: any) => processStream(s, 'B', 1));
     Object.keys(groups).forEach(k => { if (groups[k]!.length === 0) delete groups[k]; });
-    return groups;
+    return { groups, initialValues };
   };
 
-  const groupedOptions = buildGroupedOptions(infoA, infoB);
-  
   const buildFileSummary = (info: any) => {
     const duration = info.format?.duration ? formatDuration(parseFloat(info.format.duration)) : 'N/A';
     const size = info.format?.size ? formatSize(parseInt(info.format.size)) : 'N/A';
@@ -121,31 +132,83 @@ export async function mergeCommand(args: string[]) {
     `${pc.dim(padLabel('Legendas', 10))} | ${padLabel(sumA.sSummary, 30)} | ${sumB.sSummary}`,
   ].join('\n'), 'Comparação Lado a Lado');
 
-  const initialValues: any[] = [];
-  if (suggestedVideo === 'A' && vA) initialValues.push(groupedOptions['🎬 Vídeo']?.find((o: any) => o.value.fileIndex === 0)?.value);
-  else if (suggestedVideo === 'B' && vB) initialValues.push(groupedOptions['🎬 Vídeo']?.find((o: any) => o.value.fileIndex === 1)?.value);
-
-  const selectedStreams = onCancel(await groupMultiselect({
+  let { groups, initialValues } = buildGroupedOptions(infoA, infoB);
+  let selectedStreams = onCancel(await groupMultiselect({
     message: `Selecione as faixas que deseja manter (Sugestão de vídeo: Arquivo ${suggestedVideo})`,
-    options: groupedOptions,
+    options: groups,
     required: true,
     initialValues: initialValues.filter(Boolean),
   })) as any[];
+
+  let currentDelayMs = 0;
+  let applyShortest = false;
+
+  const askForSync = async () => {
+    const delayStr = await text({
+      message: 'Informe o atraso do Arquivo B em milissegundos (ex: 2000 para atrasar 2s, -500 para adiantar 0.5s). Pressione Enter para 0:',
+      initialValue: currentDelayMs.toString(),
+      validate(value) {
+        if (value && isNaN(parseInt(value as string))) return 'Digite um número válido';
+      }
+    });
+    
+    if (onCancel(delayStr) !== undefined) {
+      currentDelayMs = parseInt(delayStr as string) || 0;
+    }
+
+    applyShortest = await confirm({
+      message: 'Deseja usar o Modo Estrito (Cortar o arquivo final assim que a trilha mais curta acabar)?',
+      initialValue: applyShortest
+    }) as boolean;
+    if (onCancel(applyShortest) === false) applyShortest = false;
+  };
+
+  // Automação: Pergunta imediatamente se a diferença for maior que 1 segundo
+  if (Math.abs(durA - durB) > 1) {
+    note(pc.yellow(`⚠ Atenção: Uma diferença na duração dos arquivos foi detectada. Isso pode causar falta de sincronia (lip-sync) no resultado final.`), 'Alerta de Duração');
+    await askForSync();
+  }
 
   const dir = path.dirname(pathA as string);
   const name = path.basename(pathA as string, path.extname(pathA as string));
   const outputPath = path.join(dir, `${name}.jellycc_merged.${fallbackRules.container}`);
 
-  const ffmpegCmd = buildMergeCommand(selectedStreams, infoA, infoB, fallbackRules, pathA as string, pathB as string, outputPath);
+  let menuLoop = true;
+  let dsCompleted = false;
 
-  note(pc.yellow(ffmpegCmd), 'Comando FFmpeg Sugerido (Merge)');
+  while (menuLoop) {
+    const ffmpegCmd = buildMergeCommand(selectedStreams, infoA, infoB, fallbackRules, pathA as string, pathB as string, outputPath, currentDelayMs, applyShortest);
 
-  await handleExecutionMenu({
-    ffmpegCmd,
-    originalPath: pathA as string,
-    outputPath,
-    totalDuration,
-    totalFrames,
-    isMerge: true
-  });
+    let syncMsg = currentDelayMs !== 0 ? pc.dim(` (Sincronia ajustada: ${currentDelayMs}ms)`) : '';
+    let cutMsg = applyShortest ? pc.yellow(` [Corte Estrito]`) : '';
+    note(pc.yellow(ffmpegCmd), `Comando FFmpeg Sugerido (Merge)${syncMsg}${cutMsg}`);
+
+    const result = await handleExecutionMenu({
+      ffmpegCmd,
+      originalPath: pathA as string,
+      outputPath,
+      totalDuration: Math.max(durA, durB),
+      totalFrames,
+      isMerge: true,
+      allowStreamSelection: true,
+      allowSyncAdjustment: true,
+      deepScanCompleted: dsCompleted
+    });
+
+    dsCompleted = result.deepScanCompleted;
+
+    if (result.action === 'select_streams') {
+      const refreshedOptions = buildGroupedOptions(infoA, infoB, selectedStreams);
+      selectedStreams = onCancel(await groupMultiselect({
+        message: 'Modifique as faixas que deseja manter:',
+        options: refreshedOptions.groups,
+        required: true,
+        initialValues: refreshedOptions.initialValues,
+      })) as any[];
+    } else if (result.action === 'adjust_sync') {
+      await askForSync();
+    } else {
+      menuLoop = false;
+    }
+  }
 }
