@@ -1,4 +1,4 @@
-import { text, cancel, note } from '@clack/prompts';
+import { text, cancel, note, confirm, groupMultiselect } from '@clack/prompts';
 import pc from 'picocolors';
 import fs from 'fs';
 import path from 'path';
@@ -40,6 +40,8 @@ export async function checkCommand(args: string[]) {
   
   const videoStream = probeData.streams.find((st: any) => st.codec_type === 'video' && !isAttachedPic(st));
   const audioStreams = probeData.streams.filter((st: any) => st.codec_type === 'audio');
+  const attachedPics = probeData.streams.filter((st: any) => st.codec_type === 'video' && isAttachedPic(st));
+  const subStreams = probeData.streams.filter((st: any) => st.codec_type === 'subtitle');
   
   const totalFrames = calculateTotalFrames(videoStream, totalDuration);
   const ext = path.extname(videoPath as string).toLowerCase().replace('.', '');
@@ -89,9 +91,7 @@ export async function checkCommand(args: string[]) {
 
   const isContainerCompatible = cKey === fallbackRules.container;
   const isVideoCompatible = vKey === fallbackRules.video.target;
-  const isAudioCompatible = audioStreams.every((st: any) => fallbackRules.audio.acceptable.includes(st.codec_name));
-  const isPerfect = isContainerCompatible && isVideoCompatible && isAudioCompatible;
-
+  
   const modLines: string[] = [];
   modLines.push(pc.bold('📦 CONTAINER'));
   modLines.push(cKey !== fallbackRules.container ? `  ${padLabel('Formato:')} ${pc.dim(cKey.toUpperCase())} ➔ ${pc.yellow(fallbackRules.container.toUpperCase())}` : `  ${padLabel('Formato:')} ${pc.green(cKey.toUpperCase() + ' ✔')}`);
@@ -139,7 +139,6 @@ export async function checkCommand(args: string[]) {
     });
   }
 
-  const subStreams = probeData.streams.filter((st: any) => st.codec_type === 'subtitle');
   if (subStreams.length > 0) {
     modLines.push(pc.bold('💬 LEGENDAS'));
     subStreams.forEach((sStream: any, index: number) => {
@@ -154,28 +153,141 @@ export async function checkCommand(args: string[]) {
     modLines.push('');
   }
 
-  note(modLines.join('\n').trimEnd(), 'Ação Planejada (Detalhada)');
-
-  const dir = path.dirname(videoPath as string);
-  const name = path.basename(videoPath as string, path.extname(videoPath as string));
-  const outputPath = path.join(dir, `${name}.jellycc.${fallbackRules.container}`);
-
-  const ffmpegCmd = buildCheckCommand(probeData, fallbackRules, isVideoCompatible, videoPath as string, outputPath);
-
-  if (isPerfect) {
-    note(pc.green('✔ O arquivo já atende perfeitamente às regras. A conversão fará apenas uma cópia limpa das faixas (Remux).'), 'Pronto para uso');
-  } else {
-    note(pc.yellow(ffmpegCmd), 'Comando FFmpeg Sugerido');
+  if (attachedPics.length > 0) {
+    modLines.push(pc.bold('🖼️ ANEXOS E EXTRAS'));
+    attachedPics.forEach((st: any) => {
+      modLines.push(`  Faixa ${st.index}: ${pc.yellow(st.codec_name.toUpperCase() + ' ⚠')} | Tipo: ${pc.dim('Capa / Thumbnail')} | Status: ${pc.yellow('Risco de corromper FPS')}`);
+    });
+    modLines.push('');
   }
 
-  await handleExecutionMenu({
-    ffmpegCmd,
-    originalPath: videoPath as string,
-    outputPath,
-    totalDuration,
-    totalFrames,
-    isPerfect,
-    deepScanCompleted: deepScanFlag,
-    isMerge: false
-  });
+  note(modLines.join('\n').trimEnd(), 'Ação Planejada (Detalhada)');
+
+  // --- Pergunta Automática de Limpeza ---
+  const hasGarbage = attachedPics.length > 0 || subStreams.some((st: any) => isImageSubtitle(st.codec_name));
+  let autoClean = false;
+  
+  if (hasGarbage) {
+    autoClean = await confirm({
+      message: pc.yellow('⚠ Lixos embutidos detectados (Capas ou Legendas PGS). Deseja removê-los automaticamente da versão final?'),
+      initialValue: true
+    }) as boolean;
+    if (onCancel(autoClean) === false) autoClean = false;
+  }
+
+  let selectedStreams = probeData.streams.map((s: any) => ({
+    streamIndex: s.index,
+    type: s.codec_type,
+    codec: s.codec_name
+  }));
+
+  if (autoClean) {
+    selectedStreams = selectedStreams.filter((s: any) => {
+      const fullStream = probeData.streams.find((st: any) => st.index === s.streamIndex);
+      if (s.type === 'video' && fullStream?.disposition?.attached_pic === 1) return false;
+      if (s.type === 'video' && ['mjpeg', 'png', 'bmp'].includes(s.codec)) return false;
+      if (s.type === 'subtitle' && isImageSubtitle(s.codec)) return false;
+      return true;
+    });
+  }
+
+  const buildGroupedOptions = (info: any, currentSelected: any[]) => {
+    const groups: Record<string, any[]> = { '🎬 Vídeo': [], '🔊 Áudio': [], '💬 Legendas e Outros': [] };
+    const initialValues: any[] = [];
+
+    info.streams.forEach((s: any) => {
+      let label = '';
+      const lang = s.tags && s.tags.language ? s.tags.language.toUpperCase() : 'UND';
+      const title = s.tags && s.tags.title ? ` - "${s.tags.title}"` : '';
+
+      if (s.codec_type === 'video') {
+        if (isAttachedPic(s)) {
+          label = `[${s.codec_name}] Capa / Imagem Anexada`;
+        } else {
+          const fps = formatFps(s.r_frame_rate || s.avg_frame_rate).replace(' fps', '');
+          const bitrate = s.bit_rate ? Math.round(parseInt(s.bit_rate) / 1000) + ' kbps' : 'N/A';
+          label = `[${s.codec_name}] ${s.width}x${s.height} @ ${fps}fps - ${bitrate}`;
+        }
+      } else if (s.codec_type === 'audio') {
+        const hz = s.sample_rate ? Math.round(parseInt(s.sample_rate) / 1000) + ' kHz' : 'N/A';
+        const bitrate = s.bit_rate ? Math.round(parseInt(s.bit_rate) / 1000) + ' kbps' : 'N/A';
+        const channels = s.channels === 6 ? '5.1' : s.channels === 2 ? 'Stereo' : s.channels;
+        label = `[${s.codec_name}] (${lang})${title} ${channels} Ch | ${hz} | ${bitrate}`;
+      } else if (s.codec_type === 'subtitle') {
+        const subStatus = isImageSubtitle(s.codec_name) ? pc.yellow(" ⚠ Risco de Burn-in") : pc.green(" ✔ Seguro");
+        label = `[${formatSubtitleCodec(s.codec_name)}] (${lang})${title}${subStatus}`;
+      } else {
+        label = `[${s.codec_type}] ${s.codec_name}`;
+      }
+
+      const valueObj = { streamIndex: s.index, type: s.codec_type, codec: s.codec_name };
+
+      if (s.codec_type === 'video') groups['🎬 Vídeo']!.push({ value: valueObj, label });
+      else if (s.codec_type === 'audio') groups['🔊 Áudio']!.push({ value: valueObj, label });
+      else groups['💬 Legendas e Outros']!.push({ value: valueObj, label });
+
+      if (currentSelected.some((cs: any) => cs.streamIndex === s.index)) {
+        initialValues.push(valueObj);
+      }
+    });
+
+    Object.keys(groups).forEach(k => { if (groups[k]!.length === 0) delete groups[k]; });
+    return { groups, initialValues };
+  };
+
+  let menuLoop = true;
+  let dsCompleted = deepScanFlag;
+
+  while (menuLoop) {
+    const selectedAudios = selectedStreams.filter((s: any) => s.type === 'audio');
+    const isAudioCompatible = selectedAudios.length === 0 || selectedAudios.every((s: any) => fallbackRules.audio.acceptable.includes(s.codec));
+
+    const needsTranscode = !isContainerCompatible || !isVideoCompatible || !isAudioCompatible;
+    const streamsDropped = selectedStreams.length < probeData.streams.length;
+
+    const needsAction = needsTranscode || streamsDropped;
+    const isJustRemux = !needsTranscode && streamsDropped;
+
+    const dir = path.dirname(videoPath as string);
+    const name = path.basename(videoPath as string, path.extname(videoPath as string));
+    const outputPath = path.join(dir, `${name}.jellycc.${fallbackRules.container}`);
+
+    const ffmpegCmd = buildCheckCommand(selectedStreams, probeData, fallbackRules, isVideoCompatible, videoPath as string, outputPath);
+
+    if (!needsAction) {
+      note(pc.green('✔ O arquivo atende perfeitamente às regras e contém todas as faixas originais. Nenhuma ação extra é necessária.'), 'Pronto para uso');
+    } else if (isJustRemux) {
+      const droppedCount = probeData.streams.length - selectedStreams.length;
+      note(pc.cyan(`ℹ O arquivo requer apenas uma limpeza (Remux). Você descartou ${droppedCount} faixa(s).\n\n${pc.yellow(ffmpegCmd)}`), 'Comando de Limpeza Sugerido');
+    } else {
+      note(pc.yellow(ffmpegCmd), 'Comando FFmpeg Sugerido (Transcode + Limpeza)');
+    }
+
+    const result = await handleExecutionMenu({
+      ffmpegCmd,
+      originalPath: videoPath as string,
+      outputPath,
+      totalDuration,
+      totalFrames,
+      isPerfect: !needsAction,
+      isJustRemux,
+      deepScanCompleted: dsCompleted,
+      isMerge: false,
+      allowStreamSelection: true
+    });
+
+    dsCompleted = result.deepScanCompleted;
+
+    if (result.action === 'select_streams') {
+      const { groups, initialValues } = buildGroupedOptions(probeData, selectedStreams);
+      selectedStreams = onCancel(await groupMultiselect({
+        message: 'Selecione as faixas que deseja manter no arquivo final:',
+        options: groups,
+        required: true,
+        initialValues: initialValues,
+      })) as any[];
+    } else {
+      menuLoop = false;
+    }
+  }
 }

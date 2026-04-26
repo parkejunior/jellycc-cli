@@ -19,19 +19,26 @@ export async function handleExecutionMenu(options: {
   totalDuration: number;
   totalFrames: number;
   isPerfect?: boolean;
+  isJustRemux?: boolean;
   deepScanCompleted?: boolean;
   isMerge?: boolean;
-}) {
+  allowStreamSelection?: boolean;
+}): Promise<{ action: string, deepScanCompleted: boolean }> {
   let action;
   let keepMenuOpen = true;
   let dsCompleted = options.deepScanCompleted || false;
 
   while (keepMenuOpen) {
     const menuOptions = [];
+    const actionTxt = options.isJustRemux ? 'limpeza (Remux sem transcode)' : 'conversão';
 
     if (!options.isPerfect) {
-      menuOptions.push({ label: '🚀 Executar conversão + 🔍 Deep Scan', value: 'run_and_scan' });
-      menuOptions.push({ label: '🚀 Executar conversão apenas', value: 'run' });
+      menuOptions.push({ label: `🚀 Executar ${actionTxt} + 🔍 Deep Scan`, value: 'run_and_scan' });
+      menuOptions.push({ label: `🚀 Executar ${actionTxt} apenas`, value: 'run' });
+    }
+
+    if (options.allowStreamSelection) {
+      menuOptions.push({ label: '🎛️  Modificar faixas (Abrir painel de seleção)', value: 'select_streams' });
     }
 
     if (!dsCompleted) {
@@ -48,6 +55,8 @@ export async function handleExecutionMenu(options: {
     if (action === 'deep_scan') {
       await runDeepScan(options.originalPath, options.totalDuration);
       dsCompleted = true;
+    } else if (action === 'select_streams') {
+      return { action: 'select_streams', deepScanCompleted: dsCompleted };
     } else {
       keepMenuOpen = false;
     }
@@ -67,10 +76,14 @@ export async function handleExecutionMenu(options: {
       console.error(pc.red('\nErro ou cancelamento durante a operação.'));
       process.exit(1);
     }
+    return { action: 'done', deepScanCompleted: dsCompleted };
   } else if (action === 'exit') {
     if (!options.isPerfect) {
       console.log(`\n${pc.dim('Comando limpo gerado:')}\n${pc.yellow(options.ffmpegCmd)}\n`);
     }
     outro('Operação finalizada. 🚀');
+    return { action: 'exit', deepScanCompleted: dsCompleted };
   }
+  
+  return { action: 'exit', deepScanCompleted: dsCompleted };
 }
