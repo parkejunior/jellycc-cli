@@ -74,5 +74,5 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
 
   const aCodecArg = aCodecArgs.length > 0 ? aCodecArgs.join(' ') : '-c:a copy';
 
-  return `ffmpeg -i "${pathA}" -i "${pathB}" ${mapArgs.join(' ')} ${vCodecArg} ${aCodecArg} ${sCodecArg} -threads 0 "${outputPath}"`;
+  return `ffmpeg -i "${pathA}" -i "${pathB}" ${mapArgs.join(' ')} ${vCodecArg} ${aCodecArg} ${sCodecArg} -metadata encoded_by="JellyCC" -threads 0 "${outputPath}"`;
 }
