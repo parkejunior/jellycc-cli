@@ -1,4 +1,4 @@
-import { text, groupMultiselect, note, confirm } from '@clack/prompts';
+import { text, groupMultiselect, note, confirm, select } from '@clack/prompts';
 import pc from 'picocolors';
 import fs from 'fs';
 import path from 'path';
@@ -144,16 +144,39 @@ export async function mergeCommand(args: string[]) {
   let applyShortest = false;
 
   const askForSync = async () => {
-    const delayStr = await text({
-      message: 'Informe o atraso do Arquivo B em milissegundos (ex: 2000 para atrasar 2s, -500 para adiantar 0.5s). Pressione Enter para 0:',
-      initialValue: currentDelayMs.toString(),
-      validate(value) {
-        if (value && isNaN(parseInt(value as string))) return 'Digite um número válido';
+    // Cálculo mágico do delta exato em milissegundos
+    const exactDiffMs = Math.round((durA - durB) * 1000);
+    let chosenSyncAction = 'manual';
+
+    if (exactDiffMs !== 0) {
+      const absDiff = Math.abs(exactDiffMs);
+      const actionWord = exactDiffMs > 0 ? `Atrasar Arquivo B em ${absDiff}ms` : `Adiantar Arquivo B em ${absDiff}ms`;
+      
+      chosenSyncAction = onCancel(await select({
+        message: 'Como deseja ajustar a sincronia do Arquivo B?',
+        options: [
+          { label: `⏭️  Auto-alinhar (${actionWord} para igualar ao Arquivo A)`, value: 'auto' },
+          { label: `✏️  Digitar valor manualmente`, value: 'manual' },
+          { label: `❌  Não ajustar (0ms)`, value: 'none' }
+        ]
+      })) as string;
+    }
+
+    if (chosenSyncAction === 'auto') {
+      currentDelayMs = exactDiffMs;
+    } else if (chosenSyncAction === 'manual') {
+      const delayStr = await text({
+        message: 'Informe o atraso do Arquivo B em milissegundos (ex: 2000 para atrasar 2s, -500 para adiantar 0.5s):',
+        initialValue: currentDelayMs.toString(),
+        validate(value) {
+          if (value && isNaN(parseInt(value as string))) return 'Digite um número válido';
+        }
+      });
+      if (onCancel(delayStr) !== undefined) {
+        currentDelayMs = parseInt(delayStr as string) || 0;
       }
-    });
-    
-    if (onCancel(delayStr) !== undefined) {
-      currentDelayMs = parseInt(delayStr as string) || 0;
+    } else {
+      currentDelayMs = 0;
     }
 
     applyShortest = await confirm({
