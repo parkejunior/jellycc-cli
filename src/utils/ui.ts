@@ -1,4 +1,4 @@
-import { isCancel, cancel, select, outro } from '@clack/prompts';
+import { isCancel, cancel, select, outro, text, confirm } from '@clack/prompts';
 import pc from 'picocolors';
 import { runConversion, runDeepScan } from './ffmpeg.ts';
 import { t } from './i18n.ts';
@@ -55,6 +55,7 @@ export async function handleExecutionMenu(options: {
 
     if (options.allowStreamSelection) {
       menuOptions.push({ label: t('menuModifyStreams'), value: 'select_streams' });
+      menuOptions.push({ label: t('menuEditTags'), value: 'edit_tags' }); // <-- NOVO BOTÃO
     }
 
     if (options.allowSyncAdjustment) {
@@ -84,7 +85,7 @@ export async function handleExecutionMenu(options: {
     } else if (action === 'deep_scan_full') {
       fileHasErrors = await runDeepScan(options.fullScanInputs, options.fullScanMaps, options.totalDuration);
       dsCompleted = true;
-    } else if (action === 'select_streams' || action === 'adjust_sync') {
+    } else if (action === 'select_streams' || action === 'adjust_sync' || action === 'edit_tags') {
       return { action: action as string, deepScanCompleted: dsCompleted, hasErrors: fileHasErrors };
     } else {
       keepMenuOpen = false;
@@ -120,4 +121,67 @@ export async function handleExecutionMenu(options: {
   }
   
   return { action: 'exit', deepScanCompleted: dsCompleted, hasErrors: fileHasErrors };
+}
+
+export async function editTagsMenu(selectedStreams: any[], infoA: any, infoB?: any, autoPromptUnd: boolean = false) {
+  // 1. Preenche as tags vazias com os dados originais silenciosamente
+  selectedStreams.forEach(s => {
+    const sourceInfo = (s.fileIndex === 1 && infoB) ? infoB : infoA;
+    const fullStream = sourceInfo.streams.find((st: any) => st.index === s.streamIndex);
+    if (s.language === undefined) s.language = fullStream?.tags?.language || 'und';
+    if (s.title === undefined) s.title = fullStream?.tags?.title || '';
+  });
+
+  // 2. Se for modo automático, verifica se tem lixo (UND) apenas em Áudios e Legendas!
+  if (autoPromptUnd) {
+    const hasUnd = selectedStreams.some(s => s.language.toLowerCase() === 'und' && s.type !== 'video');
+    
+    if (!hasUnd) return selectedStreams; // Vídeos UND são ignorados e passam reto
+
+    const editing = await confirm({
+      message: t('tagEditUndDetected'),
+      initialValue: true
+    });
+    if (onCancel(editing) === false) return selectedStreams;
+  }
+
+  // 3. O Menu de Edição em si
+  let looping = true;
+  while (looping) {
+    const options = selectedStreams.map((s, index) => {
+      let typeLabel = s.type === 'subtitle' ? 'Sub' : (s.type === 'audio' ? 'Áudio' : 'Vídeo');
+      let label = `[${typeLabel}] ${s.codec.toUpperCase()}`;
+      if (s.fileIndex !== undefined) label += ` (Arq ${s.fileIndex === 0 ? 'A' : 'B'})`;
+      label += ` | Idioma: ${s.language.toUpperCase()}`;
+      if (s.title) label += ` | Título: "${s.title}"`;
+
+      return { label, value: index };
+    });
+
+    options.push({ label: pc.green(t('tagEditDone')), value: -1 });
+
+    const pickedIdx = onCancel(await select({
+      message: t('tagEditSelect'),
+      options
+    })) as number;
+
+    if (pickedIdx === -1) {
+      looping = false;
+      break;
+    }
+
+    const st = selectedStreams[pickedIdx];
+
+    st.language = onCancel(await text({
+      message: t('tagEditLang'),
+      initialValue: st.language,
+    })) as string;
+
+    st.title = onCancel(await text({
+      message: t('tagEditTitle'),
+      initialValue: st.title,
+    })) as string;
+  }
+
+  return selectedStreams;
 }

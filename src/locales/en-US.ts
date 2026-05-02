@@ -19,6 +19,7 @@ export default {
   menuDeepScanSelected: '🔬 Myopic Scan (Selected tracks only)',
   menuRunRepairScan: '🔧 Execute Forced Repair + 🔍 Deep Scan',
   menuRunRepairOnly: '🔧 Execute Forced Repair only',
+  menuEditTags: '🏷️  Edit Track Tags (Language/Title)',
   successMerge: '✔ File merged and verified successfully! 🚀',
   successOp: '✔ Operation finished successfully! 🚀',
   errorOp: '\nError or cancellation during operation.',
@@ -112,4 +113,11 @@ export default {
   titleCheck: 'Media Analysis and Cleanup',
   titleMerge: 'Media Merge',
   titleLang: 'Language Configuration',
+
+  // Tags (Language Editing)
+  tagEditUndDetected: '⚠️ One or more tracks with unknown language (UND) detected. Do you want to edit tags now?',
+  tagEditSelect: 'Select the track you want to edit:',
+  tagEditDone: '✅ Finish editing tags',
+  tagEditLang: 'Language (3-letter code. Ex: eng, jpn, und):',
+  tagEditTitle: 'Track Title (Leave blank to clear original):',
 };

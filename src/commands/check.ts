@@ -4,7 +4,7 @@ import pc from 'picocolors';
 import fs from 'fs';
 import path from 'path';
 
-import { onCancel, sanitizePath, handleExecutionMenu } from '../utils/ui.ts';
+import { onCancel, sanitizePath, handleExecutionMenu, editTagsMenu } from '../utils/ui.ts';
 import { runQuickScan, getMediaInfo } from '../utils/ffprobe.ts';
 import { buildCheckCommand } from '../utils/builder.ts';
 import { formatFps, formatBitrate, getBitDepth, formatSampleRate, formatChannels, padLabel, isImageSubtitle, formatSubtitleCodec, isAttachedPic, calculateTotalFrames } from '../utils/formatters.ts';
@@ -181,6 +181,8 @@ export async function checkCommand(args: string[]) {
     codec: s.codec_name
   }));
 
+  selectedStreams = await editTagsMenu(selectedStreams, probeData, undefined, true);
+
   if (autoClean) {
     selectedStreams = selectedStreams.filter((s: any) => {
       const fullStream = probeData.streams.find((st: any) => st.index === s.streamIndex);
@@ -303,8 +305,11 @@ export async function checkCommand(args: string[]) {
         required: true,
         initialValues: initialValues,
       })) as any[];
-    } else {
-      menuLoop = false;
+      
+      selectedStreams = await editTagsMenu(selectedStreams, probeData, undefined, true);
+      
+    } else if (result.action === 'edit_tags') {
+      selectedStreams = await editTagsMenu(selectedStreams, probeData, undefined, false);
     }
   }
 }

@@ -19,6 +19,7 @@ export default {
   menuDeepScanSelected: '🔬 Myopic Scan (Apenas faixas selecionadas)',
   menuRunRepairScan: '🔧 Executar Reparo Forçado + 🔍 Deep Scan',
   menuRunRepairOnly: '🔧 Executar Reparo Forçado apenas',
+  menuEditTags: '🏷️  Editar Tags das Faixas (Idioma/Título)',
   successMerge: '✔ Arquivo mesclado e verificado com sucesso! 🚀',
   successOp: '✔ Operação finalizada com sucesso! 🚀',
   errorOp: '\nErro ou cancelamento durante a operação.',
@@ -112,4 +113,11 @@ export default {
   titleCheck: 'Análise e Limpeza de Mídia',
   titleMerge: 'Mesclagem de Mídia',
   titleLang: 'Configuração de Idioma',
+
+  // Tags (Edição de Idiomas)
+  tagEditUndDetected: '⚠️ Foi detectada uma ou mais faixas com idioma desconhecido (UND). Deseja editar as tags agora?',
+  tagEditSelect: 'Selecione a faixa que deseja editar:',
+  tagEditDone: '✅ Concluir edição de tags',
+  tagEditLang: 'Idioma (Código de 3 letras. Ex: por, eng, jpn, und):',
+  tagEditTitle: 'Título da faixa (Deixe em branco para limpar o original):',
 };
