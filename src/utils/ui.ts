@@ -16,8 +16,10 @@ export const sanitizePath = (p: string | undefined | null) => p ? p.trim().repla
 export async function handleExecutionMenu(options: {
   ffmpegCmd: string;
   ffmpegRepairCmd?: string;
-  scanInputs: string[];
-  scanMaps: string[];
+  fullScanInputs: string[];
+  fullScanMaps: string[];
+  selectedScanInputs?: string[]; // Tornou-se opcional
+  selectedScanMaps?: string[];   // Tornou-se opcional
   outputPath: string;
   totalDuration: number;
   totalFrames: number;
@@ -28,6 +30,7 @@ export async function handleExecutionMenu(options: {
   isMerge?: boolean;
   allowStreamSelection?: boolean;
   allowSyncAdjustment?: boolean;
+  allowMyopicScan?: boolean;     // <-- A CHAVE NOVA AQUI
 }): Promise<{ action: string, deepScanCompleted: boolean, hasErrors: boolean }> {
   let action;
   let keepMenuOpen = true;
@@ -37,7 +40,6 @@ export async function handleExecutionMenu(options: {
   while (keepMenuOpen) {
     const menuOptions = [];
 
-    // A MÁGICA DA UX ESTÁ AQUI: Substituição inteligente de opções
     if (fileHasErrors && options.ffmpegRepairCmd) {
       menuOptions.push({ label: pc.yellow(t('menuRunRepairScan')), value: 'run_repair_and_scan' });
       menuOptions.push({ label: pc.yellow(t('menuRunRepairOnly')), value: 'run_repair' });
@@ -60,7 +62,13 @@ export async function handleExecutionMenu(options: {
     }
 
     if (!dsCompleted) {
-      menuOptions.push({ label: t('menuDeepScan'), value: 'deep_scan' });
+      // A MÁGICA VISUAL AQUI
+      if (options.allowMyopicScan) {
+        menuOptions.push({ label: t('menuDeepScanSelected'), value: 'deep_scan_selected' });
+        menuOptions.push({ label: t('menuDeepScanFull'), value: 'deep_scan_full' });
+      } else {
+        menuOptions.push({ label: t('menuDeepScanFull'), value: 'deep_scan_full' });
+      }
     }
 
     menuOptions.push({ label: t('exit'), value: 'exit' });
@@ -70,9 +78,11 @@ export async function handleExecutionMenu(options: {
       options: menuOptions
     }));
 
-    if (action === 'deep_scan') {
-      // Usa os inputs e mapas fornecidos pela tela
-      fileHasErrors = await runDeepScan(options.scanInputs, options.scanMaps, options.totalDuration);
+    if (action === 'deep_scan_selected') {
+      fileHasErrors = await runDeepScan(options.selectedScanInputs!, options.selectedScanMaps!, options.totalDuration);
+      dsCompleted = true;
+    } else if (action === 'deep_scan_full') {
+      fileHasErrors = await runDeepScan(options.fullScanInputs, options.fullScanMaps, options.totalDuration);
       dsCompleted = true;
     } else if (action === 'select_streams' || action === 'adjust_sync') {
       return { action: action as string, deepScanCompleted: dsCompleted, hasErrors: fileHasErrors };
@@ -81,7 +91,6 @@ export async function handleExecutionMenu(options: {
     }
   }
 
-  // Tratamento da execução baseado no botão escolhido
   const runActions = ['run', 'run_and_scan', 'run_repair', 'run_repair_and_scan'];
   
   if (action && runActions.includes(action as string)) {
@@ -92,7 +101,6 @@ export async function handleExecutionMenu(options: {
       await runConversion(cmdToRun, options.totalDuration, options.totalFrames);
       
       if (action === 'run_and_scan' || action === 'run_repair_and_scan') {
-        // Escaneia o arquivo final mapeando TODAS as faixas (0)
         await runDeepScan([options.outputPath], ['0'], options.totalDuration);
       }
 

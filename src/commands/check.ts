@@ -256,9 +256,13 @@ export async function checkCommand(args: string[]) {
     const ffmpegCmd = buildCheckCommand(selectedStreams, probeData, fallbackRules, isVideoCompatible, videoPath as string, outputPath, false);
     const ffmpegRepairCmd = buildCheckCommand(selectedStreams, probeData, fallbackRules, isVideoCompatible, videoPath as string, outputPath, true);
 
-    // Mapeia exatamente o que o usuário selecionou para o Scan
-    const scanInputs = [videoPath as string];
-    const scanMaps = selectedStreams.map((s: any) => `0:${s.streamIndex}`);
+    // Mapeamento Total (Todas as faixas do arquivo 0)
+    const fullScanInputs = [videoPath as string];
+    const fullScanMaps = ['0'];
+
+    // Mapeamento Parcial (Só o que você escolheu)
+    const selectedScanInputs = [videoPath as string];
+    const selectedScanMaps = selectedStreams.map((s: any) => `0:${s.streamIndex}`);
 
     if (!needsAction) {
       note(pc.green(t('checkPerfect')), t('readyToUse'));
@@ -272,8 +276,10 @@ export async function checkCommand(args: string[]) {
     const result = await handleExecutionMenu({
       ffmpegCmd,
       ffmpegRepairCmd,
-      scanInputs,
-      scanMaps,
+      fullScanInputs,
+      fullScanMaps,
+      selectedScanInputs,
+      selectedScanMaps,
       outputPath,
       totalDuration,
       totalFrames,
@@ -282,7 +288,8 @@ export async function checkCommand(args: string[]) {
       deepScanCompleted: dsCompleted,
       hasErrors: hasMediaErrors,
       isMerge: false,
-      allowStreamSelection: true
+      allowStreamSelection: true,
+      allowMyopicScan: true
     });
 
     dsCompleted = result.deepScanCompleted;

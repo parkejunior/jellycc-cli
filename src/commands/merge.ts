@@ -207,15 +207,18 @@ export async function mergeCommand(args: string[]) {
     let cutMsg = applyShortest ? pc.yellow(` [Corte Estrito]`) : '';
     note(pc.yellow(ffmpegCmd), `${t('mergeCmdSuggested')}${syncMsg}${cutMsg}`);
 
-    // Mapeia inteligentemente os dois arquivos
-    const scanInputs = [pathA as string, pathB as string];
-    const scanMaps = selectedStreams.map((s: any) => `${s.fileIndex}:${s.streamIndex}`);
+    // Mapeamento Total: Todos os vídeos/áudios do Arquivo 0 (A) e do Arquivo 1 (B)
+    const fullScanInputs = [pathA as string, pathB as string];
+    const fullScanMaps = [
+      ...infoA.streams.filter((s: any) => s.codec_type === 'video' || s.codec_type === 'audio').map((s: any) => `0:${s.index}`),
+      ...infoB.streams.filter((s: any) => s.codec_type === 'video' || s.codec_type === 'audio').map((s: any) => `1:${s.index}`)
+    ];
 
     const result = await handleExecutionMenu({
       ffmpegCmd,
       ffmpegRepairCmd,
-      scanInputs,
-      scanMaps,
+      fullScanInputs,
+      fullScanMaps,
       outputPath,
       totalDuration: Math.max(durA, durB),
       totalFrames,
@@ -223,7 +226,8 @@ export async function mergeCommand(args: string[]) {
       allowStreamSelection: true,
       allowSyncAdjustment: true,
       deepScanCompleted: dsCompleted,
-      hasErrors: hasMediaErrors
+      hasErrors: hasMediaErrors,
+      allowMyopicScan: false
     });
 
     dsCompleted = result.deepScanCompleted;
