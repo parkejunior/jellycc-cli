@@ -207,10 +207,15 @@ export async function mergeCommand(args: string[]) {
     let cutMsg = applyShortest ? pc.yellow(` [Corte Estrito]`) : '';
     note(pc.yellow(ffmpegCmd), `${t('mergeCmdSuggested')}${syncMsg}${cutMsg}`);
 
+    // Mapeia inteligentemente os dois arquivos
+    const scanInputs = [pathA as string, pathB as string];
+    const scanMaps = selectedStreams.map((s: any) => `${s.fileIndex}:${s.streamIndex}`);
+
     const result = await handleExecutionMenu({
       ffmpegCmd,
       ffmpegRepairCmd,
-      originalPath: pathA as string,
+      scanInputs,
+      scanMaps,
       outputPath,
       totalDuration: Math.max(durA, durB),
       totalFrames,

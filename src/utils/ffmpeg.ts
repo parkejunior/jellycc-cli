@@ -32,7 +32,7 @@ export function getDynamicAudioEncoder(stream: any, targetCodec: string, outputI
   return `-c:a:${outputIndex} aac -b:a:${outputIndex} ${targetBitrate}k`;
 }
 
-export async function runDeepScan(filePath: string, totalDurationSec: number): Promise<boolean> {
+export async function runDeepScan(inputs: string[], maps: string[], totalDurationSec: number): Promise<boolean> {
   console.log(''); 
   const dsSpinner = spinner();
   dsSpinner.start(t('scanDeepStart'));
@@ -40,12 +40,20 @@ export async function runDeepScan(filePath: string, totalDurationSec: number): P
   let hasErrors = false;
 
   return new Promise<boolean>((resolve) => {
-    const ff = spawn('ffmpeg', ['-v', 'warning', '-stats', '-i', filePath, '-f', 'null', '-']);
+    // Montagem dinâmica dos argumentos para ler apenas o que importa
+    const ffmpegArgs = ['-v', 'warning', '-stats'];
+    inputs.forEach(inp => { ffmpegArgs.push('-i', inp); });
+    maps.forEach(m => { ffmpegArgs.push('-map', m); });
+    ffmpegArgs.push('-f', 'null', '-');
+
+    const ff = spawn('ffmpeg', ffmpegArgs);
     let errorOutput = '';
+    let stderrBuffer = '';
 
     ff.stderr.on('data', (data) => {
-      const str = data.toString();
-      const timeMatch = str.match(/time=(\d{2}:\d{2}:\d{2}\.\d{2})/);
+      stderrBuffer += data.toString();
+
+      const timeMatch = stderrBuffer.match(/time=(\d{2}:\d{2}:\d{2}\.\d{2})/);
       if (timeMatch && totalDurationSec > 0) {
         const currentTime = parseFfmpegTime(timeMatch[1]);
         let percent = Math.round((currentTime / totalDurationSec) * 100);
@@ -59,24 +67,27 @@ export async function runDeepScan(filePath: string, totalDurationSec: number): P
         dsSpinner.message(`${t('scanDeepProgress', percent)} [${pc.cyan(bar)}]`);
       }
 
-      const lines = str.split(/[\r\n]+/);
+      const lines = stderrBuffer.split(/[\r\n]+/);
+      stderrBuffer = lines.pop() || '';
+
       for (const line of lines) {
         const trimmed = line.trim();
         if (trimmed && !trimmed.startsWith('frame=') && !trimmed.startsWith('size=')) {
-          const isHarmlessWarning = 
-            trimmed.includes('non monotonically increasing dts') ||
-            trimmed.includes('Past duration') ||
-            trimmed.includes('invalid dts/pts combination');
-
-          if (!isHarmlessWarning) {
-            errorOutput += trimmed + '\n';
-            hasErrors = true;
-          }
+          errorOutput += trimmed + '\n';
+          hasErrors = true;
         }
       }
     });
 
     ff.on('close', (code) => {
+      if (stderrBuffer.trim()) {
+        const trimmed = stderrBuffer.trim();
+        if (!trimmed.startsWith('frame=') && !trimmed.startsWith('size=')) {
+          errorOutput += trimmed + '\n';
+          hasErrors = true;
+        }
+      }
+
       if (errorOutput.trim()) {
         dsSpinner.stop(pc.yellow(t('scanDeepWarn')));
         console.log(pc.dim(errorOutput.trim()));

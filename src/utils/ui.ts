@@ -16,7 +16,8 @@ export const sanitizePath = (p: string | undefined | null) => p ? p.trim().repla
 export async function handleExecutionMenu(options: {
   ffmpegCmd: string;
   ffmpegRepairCmd?: string;
-  originalPath: string;
+  scanInputs: string[];
+  scanMaps: string[];
   outputPath: string;
   totalDuration: number;
   totalFrames: number;
@@ -36,7 +37,11 @@ export async function handleExecutionMenu(options: {
   while (keepMenuOpen) {
     const menuOptions = [];
 
-    if (!options.isPerfect) {
+    // A MÁGICA DA UX ESTÁ AQUI: Substituição inteligente de opções
+    if (fileHasErrors && options.ffmpegRepairCmd) {
+      menuOptions.push({ label: pc.yellow(t('menuRunRepairScan')), value: 'run_repair_and_scan' });
+      menuOptions.push({ label: pc.yellow(t('menuRunRepairOnly')), value: 'run_repair' });
+    } else if (!options.isPerfect) {
       if (options.isJustRemux) {
         menuOptions.push({ label: t('menuRunClean'), value: 'run_and_scan' });
         menuOptions.push({ label: t('menuRunCleanOnly'), value: 'run' });
@@ -44,10 +49,6 @@ export async function handleExecutionMenu(options: {
         menuOptions.push({ label: t('menuRunTranscode'), value: 'run_and_scan' });
         menuOptions.push({ label: t('menuRunTranscodeOnly'), value: 'run' });
       }
-    }
-
-    if (fileHasErrors && options.ffmpegRepairCmd) {
-      menuOptions.push({ label: pc.yellow(t('menuRunRepair')), value: 'run_repair' });
     }
 
     if (options.allowStreamSelection) {
@@ -70,22 +71,29 @@ export async function handleExecutionMenu(options: {
     }));
 
     if (action === 'deep_scan') {
-      fileHasErrors = await runDeepScan(options.originalPath, options.totalDuration);
+      // Usa os inputs e mapas fornecidos pela tela
+      fileHasErrors = await runDeepScan(options.scanInputs, options.scanMaps, options.totalDuration);
       dsCompleted = true;
     } else if (action === 'select_streams' || action === 'adjust_sync') {
-      return { action: action, deepScanCompleted: dsCompleted, hasErrors: fileHasErrors };
+      return { action: action as string, deepScanCompleted: dsCompleted, hasErrors: fileHasErrors };
     } else {
       keepMenuOpen = false;
     }
   }
 
-  if (action === 'run' || action === 'run_and_scan' || action === 'run_repair') {
+  // Tratamento da execução baseado no botão escolhido
+  const runActions = ['run', 'run_and_scan', 'run_repair', 'run_repair_and_scan'];
+  
+  if (action && runActions.includes(action as string)) {
     try {
-      const cmdToRun = action === 'run_repair' ? options.ffmpegRepairCmd! : options.ffmpegCmd;
+      const isRepair = action === 'run_repair' || action === 'run_repair_and_scan';
+      const cmdToRun = isRepair ? options.ffmpegRepairCmd! : options.ffmpegCmd;
+      
       await runConversion(cmdToRun, options.totalDuration, options.totalFrames);
       
-      if (action === 'run_and_scan' || action === 'run_repair') {
-        await runDeepScan(options.outputPath, options.totalDuration);
+      if (action === 'run_and_scan' || action === 'run_repair_and_scan') {
+        // Escaneia o arquivo final mapeando TODAS as faixas (0)
+        await runDeepScan([options.outputPath], ['0'], options.totalDuration);
       }
 
       const successMsg = options.isMerge ? t('successMerge') : t('successOp');
