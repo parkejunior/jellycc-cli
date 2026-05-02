@@ -117,7 +117,7 @@ export async function handleExecutionMenu(options: {
       console.log(`\n${pc.dim(t('cleanCmdGenerated'))}\n${pc.yellow(options.ffmpegCmd)}\n`);
     }
     outro(t('opFinished'));
-    return { action: 'exit', deepScanCompleted: dsCompleted, hasErrors: fileHasErrors };
+    process.exit(0);
   }
   
   return { action: 'exit', deepScanCompleted: dsCompleted, hasErrors: fileHasErrors };
