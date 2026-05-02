@@ -16,6 +16,7 @@ export default {
   menuModifyStreams: '🎛️  Modificar faixas (Abrir painel de seleção)',
   menuAdjustSync: '⏱️  Ajustar Sincronia / Corte Final',
   menuDeepScan: '🔍 Rodar Deep Scan (Verificar falhas no arquivo original)',
+  menuRunRepair: '🔧 Executar com Modo de Reparo (Recodificar faixas danificadas)',
   successMerge: '✔ Arquivo mesclado e verificado com sucesso! 🚀',
   successOp: '✔ Operação finalizada com sucesso! 🚀',
   errorOp: '\nErro ou cancelamento durante a operação.',

@@ -15,6 +15,7 @@ export const sanitizePath = (p: string | undefined | null) => p ? p.trim().repla
 
 export async function handleExecutionMenu(options: {
   ffmpegCmd: string;
+  ffmpegRepairCmd?: string;
   originalPath: string;
   outputPath: string;
   totalDuration: number;
@@ -22,13 +23,15 @@ export async function handleExecutionMenu(options: {
   isPerfect?: boolean;
   isJustRemux?: boolean;
   deepScanCompleted?: boolean;
+  hasErrors?: boolean;
   isMerge?: boolean;
   allowStreamSelection?: boolean;
   allowSyncAdjustment?: boolean;
-}): Promise<{ action: string, deepScanCompleted: boolean }> {
+}): Promise<{ action: string, deepScanCompleted: boolean, hasErrors: boolean }> {
   let action;
   let keepMenuOpen = true;
   let dsCompleted = options.deepScanCompleted || false;
+  let fileHasErrors = options.hasErrors || false;
 
   while (keepMenuOpen) {
     const menuOptions = [];
@@ -41,6 +44,10 @@ export async function handleExecutionMenu(options: {
         menuOptions.push({ label: t('menuRunTranscode'), value: 'run_and_scan' });
         menuOptions.push({ label: t('menuRunTranscodeOnly'), value: 'run' });
       }
+    }
+
+    if (fileHasErrors && options.ffmpegRepairCmd) {
+      menuOptions.push({ label: pc.yellow(t('menuRunRepair')), value: 'run_repair' });
     }
 
     if (options.allowStreamSelection) {
@@ -63,22 +70,21 @@ export async function handleExecutionMenu(options: {
     }));
 
     if (action === 'deep_scan') {
-      await runDeepScan(options.originalPath, options.totalDuration);
+      fileHasErrors = await runDeepScan(options.originalPath, options.totalDuration);
       dsCompleted = true;
-    } else if (action === 'select_streams') {
-      return { action: 'select_streams', deepScanCompleted: dsCompleted };
-    } else if (action === 'adjust_sync') {
-      return { action: 'adjust_sync', deepScanCompleted: dsCompleted };
+    } else if (action === 'select_streams' || action === 'adjust_sync') {
+      return { action: action, deepScanCompleted: dsCompleted, hasErrors: fileHasErrors };
     } else {
       keepMenuOpen = false;
     }
   }
 
-  if (action === 'run' || action === 'run_and_scan') {
+  if (action === 'run' || action === 'run_and_scan' || action === 'run_repair') {
     try {
-      await runConversion(options.ffmpegCmd, options.totalDuration, options.totalFrames);
+      const cmdToRun = action === 'run_repair' ? options.ffmpegRepairCmd! : options.ffmpegCmd;
+      await runConversion(cmdToRun, options.totalDuration, options.totalFrames);
       
-      if (action === 'run_and_scan') {
+      if (action === 'run_and_scan' || action === 'run_repair') {
         await runDeepScan(options.outputPath, options.totalDuration);
       }
 
@@ -88,14 +94,14 @@ export async function handleExecutionMenu(options: {
       console.error(pc.red(t('errorOp')));
       process.exit(1);
     }
-    return { action: 'done', deepScanCompleted: dsCompleted };
+    return { action: 'done', deepScanCompleted: dsCompleted, hasErrors: fileHasErrors };
   } else if (action === 'exit') {
     if (!options.isPerfect) {
       console.log(`\n${pc.dim(t('cleanCmdGenerated'))}\n${pc.yellow(options.ffmpegCmd)}\n`);
     }
     outro(t('opFinished'));
-    return { action: 'exit', deepScanCompleted: dsCompleted };
+    return { action: 'exit', deepScanCompleted: dsCompleted, hasErrors: fileHasErrors };
   }
   
-  return { action: 'exit', deepScanCompleted: dsCompleted };
+  return { action: 'exit', deepScanCompleted: dsCompleted, hasErrors: fileHasErrors };
 }

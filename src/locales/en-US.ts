@@ -16,6 +16,7 @@ export default {
   menuModifyStreams: '🎛️  Modify streams (Open selection panel)',
   menuAdjustSync: '⏱️  Adjust Sync / Final Cut',
   menuDeepScan: '🔍 Run Deep Scan (Check original file for glitches)',
+  menuRunRepair: '🔧 Execute with Repair Mode (Re-encode damaged tracks)',
   successMerge: '✔ File merged and verified successfully! 🚀',
   successOp: '✔ Operation finished successfully! 🚀',
   errorOp: '\nError or cancellation during operation.',

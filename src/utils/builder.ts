@@ -1,6 +1,6 @@
 import { getDynamicVideoEncoder, getDynamicAudioEncoder } from './ffmpeg.ts';
 
-export function buildCheckCommand(selectedStreams: any[], probeData: any, fallbackRules: any, isVideoCompatible: boolean, videoPath: string, outputPath: string) {
+export function buildCheckCommand(selectedStreams: any[], probeData: any, fallbackRules: any, isVideoCompatible: boolean, videoPath: string, outputPath: string, useRepairMode: boolean = false) {
   let codecArgs: string[] = [];
   let mapArgs: string[] = [];
   let vOutIdx = 0, aOutIdx = 0, sOutIdx = 0;
@@ -16,12 +16,12 @@ export function buildCheckCommand(selectedStreams: any[], probeData: any, fallba
       }
       vOutIdx++;
     } else if (stream.type === 'audio') {
-      if (fallbackRules.audio.acceptable.includes(stream.codec)) {
+      if (!useRepairMode && fallbackRules.audio.acceptable.includes(stream.codec)) {
         codecArgs.push(`-c:a:${aOutIdx} copy`);
       } else {
-        const map = (fallbackRules.audio.mappings as any)[stream.codec] || fallbackRules.audio.mappings.default;
+        const target = fallbackRules.audio.acceptable.includes(stream.codec) ? 'aac' : ((fallbackRules.audio.mappings as any)[stream.codec] || fallbackRules.audio.mappings.default).target;
         const fullStream = probeData.streams.find((st: any) => st.index === stream.streamIndex);
-        codecArgs.push(getDynamicAudioEncoder(fullStream, map.target, aOutIdx));
+        codecArgs.push(getDynamicAudioEncoder(fullStream, target, aOutIdx));
       }
       aOutIdx++;
     } else if (stream.type === 'subtitle') {
@@ -30,10 +30,10 @@ export function buildCheckCommand(selectedStreams: any[], probeData: any, fallba
     }
   }
   
-  return `ffmpeg -i "${videoPath}" ${mapArgs.join(' ')} ${codecArgs.join(' ')} -metadata encoded_by="JellyCC" -threads 0 "${outputPath}"`;
+  return `ffmpeg -fflags +genpts -i "${videoPath}" ${mapArgs.join(' ')} ${codecArgs.join(' ')} -max_muxing_queue_size 1024 -metadata encoded_by="JellyCC" -threads 0 "${outputPath}"`;
 }
 
-export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any, fallbackRules: any, pathA: string, pathB: string, outputPath: string, delayMs: number = 0, applyShortest: boolean = false) {
+export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any, fallbackRules: any, pathA: string, pathB: string, outputPath: string, delayMs: number = 0, applyShortest: boolean = false, useRepairMode: boolean = false) {
   let mapArgs: string[] = [];
   let vCodecArg = '-c:v copy';
   let aCodecArgs: string[] = [];
@@ -60,13 +60,13 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
     let audioOutputIndex = 0;
     for (const stream of selectedStreams) {
       if (stream.type === 'audio') {
-        if (!fallbackRules.audio.acceptable.includes(stream.codec)) {
-          const map = (fallbackRules.audio.mappings as any)[stream.codec] || fallbackRules.audio.mappings.default;
+        if (!useRepairMode && fallbackRules.audio.acceptable.includes(stream.codec)) {
+          aCodecArgs.push(`-c:a:${audioOutputIndex} copy`);
+        } else {
+          const target = fallbackRules.audio.acceptable.includes(stream.codec) ? 'aac' : ((fallbackRules.audio.mappings as any)[stream.codec] || fallbackRules.audio.mappings.default).target;
           const sourceInfo = stream.fileIndex === 0 ? infoA : infoB;
           const fullStream = sourceInfo.streams.find((st: any) => st.index === stream.streamIndex);
-          aCodecArgs.push(getDynamicAudioEncoder(fullStream, map.target, audioOutputIndex));
-        } else {
-          aCodecArgs.push(`-c:a:${audioOutputIndex} copy`);
+          aCodecArgs.push(getDynamicAudioEncoder(fullStream, target, audioOutputIndex));
         }
         audioOutputIndex++;
       }
@@ -80,5 +80,5 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
   const aCodecArg = aCodecArgs.length > 0 ? aCodecArgs.join(' ') : '-c:a copy';
   const shortestArg = applyShortest ? '-shortest ' : '';
 
-  return `ffmpeg ${offsetA}-i "${pathA}" ${offsetB}-i "${pathB}" ${mapArgs.join(' ')} ${vCodecArg} ${aCodecArg} ${sCodecArg} ${shortestArg}-metadata encoded_by="JellyCC" -threads 0 "${outputPath}"`;
+  return `ffmpeg -fflags +genpts ${offsetA}-i "${pathA}" -fflags +genpts ${offsetB}-i "${pathB}" ${mapArgs.join(' ')} ${vCodecArg} ${aCodecArg} ${sCodecArg} ${shortestArg}-max_muxing_queue_size 1024 -metadata encoded_by="JellyCC" -threads 0 "${outputPath}"`;
 }

@@ -237,6 +237,7 @@ export async function checkCommand(args: string[]) {
 
   let menuLoop = true;
   let dsCompleted = deepScanFlag;
+  let hasMediaErrors = false;
 
   while (menuLoop) {
     const selectedAudios = selectedStreams.filter((s: any) => s.type === 'audio');
@@ -252,7 +253,8 @@ export async function checkCommand(args: string[]) {
     const name = path.basename(videoPath as string, path.extname(videoPath as string));
     const outputPath = path.join(dir, `${name}.jellycc.${fallbackRules.container}`);
 
-    const ffmpegCmd = buildCheckCommand(selectedStreams, probeData, fallbackRules, isVideoCompatible, videoPath as string, outputPath);
+    const ffmpegCmd = buildCheckCommand(selectedStreams, probeData, fallbackRules, isVideoCompatible, videoPath as string, outputPath, false);
+    const ffmpegRepairCmd = buildCheckCommand(selectedStreams, probeData, fallbackRules, isVideoCompatible, videoPath as string, outputPath, true);
 
     if (!needsAction) {
       note(pc.green(t('checkPerfect')), t('readyToUse'));
@@ -265,6 +267,7 @@ export async function checkCommand(args: string[]) {
 
     const result = await handleExecutionMenu({
       ffmpegCmd,
+      ffmpegRepairCmd,
       originalPath: videoPath as string,
       outputPath,
       totalDuration,
@@ -272,11 +275,13 @@ export async function checkCommand(args: string[]) {
       isPerfect: !needsAction,
       isJustRemux,
       deepScanCompleted: dsCompleted,
+      hasErrors: hasMediaErrors,
       isMerge: false,
       allowStreamSelection: true
     });
 
     dsCompleted = result.deepScanCompleted;
+    hasMediaErrors = result.hasErrors;
 
     if (result.action === 'select_streams') {
       const { groups, initialValues } = buildGroupedOptions(probeData, selectedStreams);

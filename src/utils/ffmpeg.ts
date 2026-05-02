@@ -32,12 +32,14 @@ export function getDynamicAudioEncoder(stream: any, targetCodec: string, outputI
   return `-c:a:${outputIndex} aac -b:a:${outputIndex} ${targetBitrate}k`;
 }
 
-export async function runDeepScan(filePath: string, totalDurationSec: number) {
+export async function runDeepScan(filePath: string, totalDurationSec: number): Promise<boolean> {
   console.log(''); 
   const dsSpinner = spinner();
   dsSpinner.start(t('scanDeepStart'));
 
-  return new Promise<void>((resolve) => {
+  let hasErrors = false;
+
+  return new Promise<boolean>((resolve) => {
     const ff = spawn('ffmpeg', ['-v', 'warning', '-stats', '-i', filePath, '-f', 'null', '-']);
     let errorOutput = '';
 
@@ -61,7 +63,15 @@ export async function runDeepScan(filePath: string, totalDurationSec: number) {
       for (const line of lines) {
         const trimmed = line.trim();
         if (trimmed && !trimmed.startsWith('frame=') && !trimmed.startsWith('size=')) {
-          errorOutput += trimmed + '\n';
+          const isHarmlessWarning = 
+            trimmed.includes('non monotonically increasing dts') ||
+            trimmed.includes('Past duration') ||
+            trimmed.includes('invalid dts/pts combination');
+
+          if (!isHarmlessWarning) {
+            errorOutput += trimmed + '\n';
+            hasErrors = true;
+          }
         }
       }
     });
@@ -74,9 +84,10 @@ export async function runDeepScan(filePath: string, totalDurationSec: number) {
         dsSpinner.stop(pc.green(t('scanDeepPass')));
       } else {
         dsSpinner.stop(pc.red(t('scanDeepFail', code)));
+        hasErrors = true;
       }
       console.log('');
-      resolve();
+      resolve(hasErrors);
     });
   });
 }

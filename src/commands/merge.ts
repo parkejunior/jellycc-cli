@@ -197,9 +197,11 @@ export async function mergeCommand(args: string[]) {
 
   let menuLoop = true;
   let dsCompleted = false;
+  let hasMediaErrors = false;
 
   while (menuLoop) {
-    const ffmpegCmd = buildMergeCommand(selectedStreams, infoA, infoB, fallbackRules, pathA as string, pathB as string, outputPath, currentDelayMs, applyShortest);
+    const ffmpegCmd = buildMergeCommand(selectedStreams, infoA, infoB, fallbackRules, pathA as string, pathB as string, outputPath, currentDelayMs, applyShortest, false);
+    const ffmpegRepairCmd = buildMergeCommand(selectedStreams, infoA, infoB, fallbackRules, pathA as string, pathB as string, outputPath, currentDelayMs, applyShortest, true);
 
     let syncMsg = currentDelayMs !== 0 ? pc.dim(` (Sincronia ajustada: ${currentDelayMs}ms)`) : '';
     let cutMsg = applyShortest ? pc.yellow(` [Corte Estrito]`) : '';
@@ -207,6 +209,7 @@ export async function mergeCommand(args: string[]) {
 
     const result = await handleExecutionMenu({
       ffmpegCmd,
+      ffmpegRepairCmd,
       originalPath: pathA as string,
       outputPath,
       totalDuration: Math.max(durA, durB),
@@ -214,10 +217,12 @@ export async function mergeCommand(args: string[]) {
       isMerge: true,
       allowStreamSelection: true,
       allowSyncAdjustment: true,
-      deepScanCompleted: dsCompleted
+      deepScanCompleted: dsCompleted,
+      hasErrors: hasMediaErrors
     });
 
     dsCompleted = result.deepScanCompleted;
+    hasMediaErrors = result.hasErrors;
 
     if (result.action === 'select_streams') {
       const refreshedOptions = buildGroupedOptions(infoA, infoB, selectedStreams);
