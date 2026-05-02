@@ -98,5 +98,15 @@ export default {
   convProgress: 'Conversão em andamento:',
   convPass: '✔ Conversão finalizada com sucesso!',
   convFail: '✖ Erro durante a conversão (Código {0}).',
-  convStartFail: '✖ Falha ao tentar iniciar o processo do FFmpeg: {0}'
+  convStartFail: '✖ Falha ao tentar iniciar o processo do FFmpeg: {0}',
+
+  // Comando: Lang
+  langSelect: '🌐 Selecione o idioma de sua preferência:',
+  langChanged: '✔ Idioma alterado com sucesso!',
+  langError: '✖ Erro ao salvar a configuração de idioma.',
+
+  // Títulos dos Comandos
+  titleCheck: 'Análise e Limpeza de Mídia',
+  titleMerge: 'Mesclagem de Mídia',
+  titleLang: 'Configuração de Idioma',
 };
