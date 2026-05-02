@@ -1,3 +1,4 @@
+import { t } from '../utils/i18n.ts';
 import { text, cancel, note, confirm, groupMultiselect } from '@clack/prompts';
 import pc from 'picocolors';
 import fs from 'fs';
@@ -18,17 +19,17 @@ export async function checkCommand(args: string[]) {
 
   if (!videoPath) {
     let rawPath = onCancel(await text({
-      message: 'Qual é o caminho do arquivo de vídeo?',
+      message: t('checkAskVideo'),
       placeholder: './filme.mkv',
       validate(value) {
         const clean = sanitizePath(value);
-        if (!clean) return 'O caminho é obrigatório!';
-        if (!fs.existsSync(clean)) return 'Arquivo não encontrado no disco!';
+        if (!clean) return t('pathRequired');
+        if (!fs.existsSync(clean)) return t('fileNotFound');
       }
     }));
     videoPath = sanitizePath(rawPath);
   } else if (!fs.existsSync(videoPath)) {
-    cancel('O arquivo passado como argumento não foi encontrado no disco!');
+    cancel(t('filePassedNotFound'));
     process.exit(1);
   }
 
@@ -67,14 +68,14 @@ export async function checkCommand(args: string[]) {
   const aKey = audioStreams.length > 0 ? audioStreams[0].codec_name : null;
 
   const formatResult = (status: any, key: any) => {
-    if (!key) return pc.dim('N/A');
-    if (status === true) return pc.green('✔ Direct Play');
-    if (status === false) return pc.red('✖ Transcode');
-    if (typeof status === 'string') return `${pc.yellow('⚠ Condicional:')} ${status}`;
-    return pc.gray(`? Desconhecido (${key})`);
+    if (!key) return pc.dim(t('checkUnknown'));
+    if (status === true) return pc.green(t('checkDirectPlay'));
+    if (status === false) return pc.red(t('checkTranscode'));
+    if (typeof status === 'string') return `${pc.yellow(t('checkConditional'))} ${status}`;
+    return pc.gray(`${t('checkUnknown')} (${key})`);
   };
 
-  let resultText = `\n${pc.bold('📁 Arquivo:')} ${path.basename(videoPath as string)}\n${pc.bold('📦 Container:')} ${cKey}  |  ${pc.bold('🎥 Vídeo:')} ${vKey}  |  ${pc.bold('🔊 Áudio(s):')} ${audioStreams.length} faixa(s)\n\n${pc.bold(pc.cyan('--- Compatibilidade por Cliente ---'))}\n`;
+  let resultText = `\n${pc.bold(t('checkFile'))} ${path.basename(videoPath as string)}\n${pc.bold(t('checkContainer'))} ${cKey}  |  ${pc.bold(t('checkVideo'))} ${vKey}  |  ${pc.bold(t('checkAudio'))} ${audioStreams.length} ${t('checkTrack')}\n\n${pc.bold(pc.cyan(t('checkMatrixTitle')))}\n`;
 
   for (const client of clients) {
     const matrix = (supportMatrix.clients as any)[client];
@@ -87,18 +88,18 @@ export async function checkCommand(args: string[]) {
 
     resultText += `\n${pc.bold(client.toUpperCase())} ${badge}\n  Container: ${formatResult(cStatus, cKey)}\n  Vídeo:     ${formatResult(vStatus, vKey)}\n  Áudio:     ${formatResult(aStatus, aKey)}\n`;
   }
-  note(resultText.trim(), 'Resultados da Matriz Jellyfin');
+  note(resultText.trim(), t('checkMatrixResults'));
 
   const isContainerCompatible = cKey === fallbackRules.container;
   const isVideoCompatible = vKey === fallbackRules.video.target;
   
   const modLines: string[] = [];
-  modLines.push(pc.bold('📦 CONTAINER'));
-  modLines.push(cKey !== fallbackRules.container ? `  ${padLabel('Formato:')} ${pc.dim(cKey.toUpperCase())} ➔ ${pc.yellow(fallbackRules.container.toUpperCase())}` : `  ${padLabel('Formato:')} ${pc.green(cKey.toUpperCase() + ' ✔')}`);
+  modLines.push(pc.bold(t('checkContainer').replace(':', '').toUpperCase()));
+  modLines.push(cKey !== fallbackRules.container ? `  ${padLabel(t('checkFormat'))} ${pc.dim(cKey.toUpperCase())} ➔ ${pc.yellow(fallbackRules.container.toUpperCase())}` : `  ${padLabel(t('checkFormat'))} ${pc.green(cKey.toUpperCase() + ' ✔')}`);
   modLines.push('');
 
   if (videoStream) {
-    modLines.push(pc.bold('🎥 VÍDEO'));
+    modLines.push(pc.bold(t('checkVideo').replace(':', '').toUpperCase()));
     const vFps = formatFps(videoStream.r_frame_rate || videoStream.avg_frame_rate);
     const vBitrate = formatBitrate(videoStream.bit_rate);
     const vDepth = getBitDepth(videoStream);
@@ -106,25 +107,25 @@ export async function checkCommand(args: string[]) {
     const vCodecOriginal = vKey ? vKey.toUpperCase() : 'DESCONHECIDO';
 
     if (isVideoCompatible) {
-      modLines.push(`  ${padLabel('Codec:')} ${pc.green(vCodecOriginal + ' ✔')}\n  ${padLabel('Resolução:')} ${pc.dim(vRes)}\n  ${padLabel('FPS:')} ${pc.dim(vFps)}\n  ${padLabel('Bit Depth:')} ${pc.dim(vDepth)}\n  ${padLabel('Bitrate:')} ${pc.dim(vBitrate)}`);
+      modLines.push(`  ${padLabel(t('checkCodec'))} ${pc.green(vCodecOriginal + ' ✔')}\n  ${padLabel(t('checkRes'))} ${pc.dim(vRes)}\n  ${padLabel(t('checkFps'))} ${pc.dim(vFps)}\n  ${padLabel(t('checkBitDepth'))} ${pc.dim(vDepth)}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(vBitrate)}`);
     } else {
-      modLines.push(`  ${padLabel('Codec:')} ${pc.dim(vCodecOriginal)} ➔ ${pc.yellow('H.264')}\n  ${padLabel('Resolução:')} ${pc.dim(vRes)}\n  ${padLabel('FPS:')} ${pc.dim(vFps)}\n  ${padLabel('Bit Depth:')} ${vDepth === '8-bit' ? pc.dim('8-bit') : `${pc.dim(vDepth)} ➔ ${pc.yellow('8-bit')}`}\n  ${padLabel('Bitrate:')} ${pc.dim(vBitrate)} ➔ ${pc.yellow('Visually Lossless (CRF 18)')}`);
+      modLines.push(`  ${padLabel(t('checkCodec'))} ${pc.dim(vCodecOriginal)} ➔ ${pc.yellow('H.264')}\n  ${padLabel(t('checkRes'))} ${pc.dim(vRes)}\n  ${padLabel(t('checkFps'))} ${pc.dim(vFps)}\n  ${padLabel(t('checkBitDepth'))} ${vDepth === '8-bit' ? pc.dim('8-bit') : `${pc.dim(vDepth)} ➔ ${pc.yellow('8-bit')}`}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(vBitrate)} ➔ ${pc.yellow('Visually Lossless (CRF 18)')}`);
     }
     modLines.push('');
   }
 
   if (audioStreams.length > 0) {
-    modLines.push(pc.bold('🔊 ÁUDIO'));
+    modLines.push(pc.bold(t('checkAudio').replace(':', '').toUpperCase()));
     audioStreams.forEach((aStream: any, index: number) => {
       const aSampleRate = formatSampleRate(aStream.sample_rate);
       const aBitrate = formatBitrate(aStream.bit_rate);
       const audioChannels = aStream.channels || 2;
       const aChannelsStr = formatChannels(audioChannels);
       const aCodecOriginal = aStream.codec_name ? aStream.codec_name.toUpperCase() : 'DESCONHECIDO';
-      const trackLbl = audioStreams.length > 1 ? `Faixa ${index + 1}:` : 'Codec:';
+      const trackLbl = audioStreams.length > 1 ? `Faixa ${index + 1}:` : t('checkCodec');
 
       if (fallbackRules.audio.acceptable.includes(aStream.codec_name)) {
-        modLines.push(`  ${padLabel(trackLbl)} ${pc.green(aCodecOriginal + ' ✔')}\n  ${padLabel('Canais:')} ${pc.dim(aChannelsStr)}\n  ${padLabel('Sample:')} ${pc.dim(aSampleRate)}\n  ${padLabel('Bitrate:')} ${pc.dim(aBitrate)}\n`);
+        modLines.push(`  ${padLabel(trackLbl)} ${pc.green(aCodecOriginal + ' ✔')}\n  ${padLabel(t('checkChannels'))} ${pc.dim(aChannelsStr)}\n  ${padLabel(t('checkSample'))} ${pc.dim(aSampleRate)}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(aBitrate)}\n`);
       } else {
         const map = (fallbackRules.audio.mappings as any)[aStream.codec_name] || fallbackRules.audio.mappings.default;
         let targetBitrateStr = 'Lossless';
@@ -134,42 +135,41 @@ export async function checkCommand(args: string[]) {
           if (map.target === 'eac3') finalKbps = Math.min(finalKbps, 768);
           targetBitrateStr = `${finalKbps} kbps`;
         }
-        modLines.push(`  ${padLabel(trackLbl)} ${pc.dim(aCodecOriginal)} ➔ ${pc.yellow(map.target.toUpperCase())}\n  ${padLabel('Canais:')} ${pc.dim(aChannelsStr)}\n  ${padLabel('Sample:')} ${pc.dim(aSampleRate)}\n  ${padLabel('Bitrate:')} ${pc.dim(aBitrate)} ➔ ${pc.yellow(targetBitrateStr)}\n`);
+        modLines.push(`  ${padLabel(trackLbl)} ${pc.dim(aCodecOriginal)} ➔ ${pc.yellow(map.target.toUpperCase())}\n  ${padLabel(t('checkChannels'))} ${pc.dim(aChannelsStr)}\n  ${padLabel(t('checkSample'))} ${pc.dim(aSampleRate)}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(aBitrate)} ➔ ${pc.yellow(targetBitrateStr)}\n`);
       }
     });
   }
 
   if (subStreams.length > 0) {
-    modLines.push(pc.bold('💬 LEGENDAS'));
+    modLines.push(pc.bold(t('checkSubs')));
     subStreams.forEach((sStream: any, index: number) => {
       const lang = sStream.tags?.language ? sStream.tags.language.toUpperCase() : 'UND';
       const codec = formatSubtitleCodec(sStream.codec_name);
       if (!isImageSubtitle(sStream.codec_name)) {
-        modLines.push(`  Faixa ${index + 1}: ${pc.green(codec + ' ✔')} | Idioma: ${pc.dim(lang)} | Status: ${pc.green('Direct Play Seguro')}`);
+        modLines.push(`  Faixa ${index + 1}: ${pc.green(codec + ' ✔')} | ${t('checkLang')} ${pc.dim(lang)} | ${t('checkStatus')} ${pc.green(t('checkSafe'))}`);
       } else {
-        modLines.push(`  Faixa ${index + 1}: ${pc.yellow(codec + ' ⚠')} | Idioma: ${pc.dim(lang)} | Status: ${pc.yellow('Risco de Burn-in (Transcoding)')}`);
+        modLines.push(`  Faixa ${index + 1}: ${pc.yellow(codec + ' ⚠')} | ${t('checkLang')} ${pc.dim(lang)} | ${t('checkStatus')} ${pc.yellow(t('checkBurnIn'))}`);
       }
     });
     modLines.push('');
   }
 
   if (attachedPics.length > 0) {
-    modLines.push(pc.bold('🖼️ ANEXOS E EXTRAS'));
+    modLines.push(pc.bold(t('checkExtras')));
     attachedPics.forEach((st: any) => {
-      modLines.push(`  Faixa ${st.index}: ${pc.yellow(st.codec_name.toUpperCase() + ' ⚠')} | Tipo: ${pc.dim('Capa / Thumbnail')} | Status: ${pc.yellow('Risco de corromper FPS')}`);
+      modLines.push(`  Faixa ${st.index}: ${pc.yellow(st.codec_name.toUpperCase() + ' ⚠')} | ${t('checkType')} ${pc.dim(t('checkCover'))} | ${t('checkStatus')} ${pc.yellow(t('checkFpsRisk'))}`);
     });
     modLines.push('');
   }
 
-  note(modLines.join('\n').trimEnd(), 'Ação Planejada (Detalhada)');
+  note(modLines.join('\n').trimEnd(), t('checkActionPlan'));
 
-  // --- Pergunta Automática de Limpeza ---
   const hasGarbage = attachedPics.length > 0 || subStreams.some((st: any) => isImageSubtitle(st.codec_name));
   let autoClean = false;
   
   if (hasGarbage) {
     autoClean = await confirm({
-      message: pc.yellow('⚠ Lixos embutidos detectados (Capas ou Legendas PGS). Deseja removê-los automaticamente da versão final?'),
+      message: pc.yellow(t('checkGarbageDetected')),
       initialValue: true
     }) as boolean;
     if (onCancel(autoClean) === false) autoClean = false;
@@ -202,7 +202,7 @@ export async function checkCommand(args: string[]) {
 
       if (s.codec_type === 'video') {
         if (isAttachedPic(s)) {
-          label = `[${s.codec_name}] Capa / Imagem Anexada`;
+          label = `[${s.codec_name}] ${t('checkCover')}`;
         } else {
           const fps = formatFps(s.r_frame_rate || s.avg_frame_rate).replace(' fps', '');
           const bitrate = s.bit_rate ? Math.round(parseInt(s.bit_rate) / 1000) + ' kbps' : 'N/A';
@@ -214,7 +214,7 @@ export async function checkCommand(args: string[]) {
         const channels = s.channels === 6 ? '5.1' : s.channels === 2 ? 'Stereo' : s.channels;
         label = `[${s.codec_name}] (${lang})${title} ${channels} Ch | ${hz} | ${bitrate}`;
       } else if (s.codec_type === 'subtitle') {
-        const subStatus = isImageSubtitle(s.codec_name) ? pc.yellow(" ⚠ Risco de Burn-in") : pc.green(" ✔ Seguro");
+        const subStatus = isImageSubtitle(s.codec_name) ? pc.yellow(` ⚠ ${t('checkBurnIn')}`) : pc.green(` ✔ ${t('checkSafe')}`);
         label = `[${formatSubtitleCodec(s.codec_name)}] (${lang})${title}${subStatus}`;
       } else {
         label = `[${s.codec_type}] ${s.codec_name}`;
@@ -255,12 +255,12 @@ export async function checkCommand(args: string[]) {
     const ffmpegCmd = buildCheckCommand(selectedStreams, probeData, fallbackRules, isVideoCompatible, videoPath as string, outputPath);
 
     if (!needsAction) {
-      note(pc.green('✔ O arquivo atende perfeitamente às regras e contém todas as faixas originais. Nenhuma ação extra é necessária.'), 'Pronto para uso');
+      note(pc.green(t('checkPerfect')), t('readyToUse'));
     } else if (isJustRemux) {
       const droppedCount = probeData.streams.length - selectedStreams.length;
-      note(pc.cyan(`ℹ O arquivo requer apenas uma limpeza (Remux). Você descartou ${droppedCount} faixa(s).\n\n${pc.yellow(ffmpegCmd)}`), 'Comando de Limpeza Sugerido');
+      note(pc.cyan(`${t('checkRemuxOnly', droppedCount)}\n\n${pc.yellow(ffmpegCmd)}`), t('checkRemuxCmd'));
     } else {
-      note(pc.yellow(ffmpegCmd), 'Comando FFmpeg Sugerido (Transcode + Limpeza)');
+      note(pc.yellow(ffmpegCmd), t('checkTranscodeCmd'));
     }
 
     const result = await handleExecutionMenu({
@@ -281,7 +281,7 @@ export async function checkCommand(args: string[]) {
     if (result.action === 'select_streams') {
       const { groups, initialValues } = buildGroupedOptions(probeData, selectedStreams);
       selectedStreams = onCancel(await groupMultiselect({
-        message: 'Selecione as faixas que deseja manter no arquivo final:',
+        message: t('checkSelectKeep'),
         options: groups,
         required: true,
         initialValues: initialValues,

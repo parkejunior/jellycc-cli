@@ -1,10 +1,11 @@
 import { isCancel, cancel, select, outro } from '@clack/prompts';
 import pc from 'picocolors';
 import { runConversion, runDeepScan } from './ffmpeg.ts';
+import { t } from './i18n.ts';
 
 export function onCancel(value: any) {
   if (isCancel(value)) {
-    cancel('Operação cancelada.');
+    cancel(t('cancel'));
     process.exit(0);
   }
   return value;
@@ -31,29 +32,33 @@ export async function handleExecutionMenu(options: {
 
   while (keepMenuOpen) {
     const menuOptions = [];
-    const actionTxt = options.isJustRemux ? 'limpeza (Remux sem transcode)' : 'conversão';
 
     if (!options.isPerfect) {
-      menuOptions.push({ label: `🚀 Executar ${actionTxt} + 🔍 Deep Scan`, value: 'run_and_scan' });
-      menuOptions.push({ label: `🚀 Executar ${actionTxt} apenas`, value: 'run' });
+      if (options.isJustRemux) {
+        menuOptions.push({ label: t('menuRunClean'), value: 'run_and_scan' });
+        menuOptions.push({ label: t('menuRunCleanOnly'), value: 'run' });
+      } else {
+        menuOptions.push({ label: t('menuRunTranscode'), value: 'run_and_scan' });
+        menuOptions.push({ label: t('menuRunTranscodeOnly'), value: 'run' });
+      }
     }
 
     if (options.allowStreamSelection) {
-      menuOptions.push({ label: '🎛️  Modificar faixas (Abrir painel de seleção)', value: 'select_streams' });
+      menuOptions.push({ label: t('menuModifyStreams'), value: 'select_streams' });
     }
 
     if (options.allowSyncAdjustment) {
-      menuOptions.push({ label: '⏱️  Ajustar Sincronia / Corte Final', value: 'adjust_sync' });
+      menuOptions.push({ label: t('menuAdjustSync'), value: 'adjust_sync' });
     }
 
     if (!dsCompleted) {
-      menuOptions.push({ label: '🔍 Rodar Deep Scan (Verificar falhas no arquivo original)', value: 'deep_scan' });
+      menuOptions.push({ label: t('menuDeepScan'), value: 'deep_scan' });
     }
 
-    menuOptions.push({ label: '❌ Sair', value: 'exit' });
+    menuOptions.push({ label: t('exit'), value: 'exit' });
 
     action = onCancel(await select({
-      message: 'O que deseja fazer?',
+      message: t('whatToDo'),
       options: menuOptions
     }));
 
@@ -77,18 +82,18 @@ export async function handleExecutionMenu(options: {
         await runDeepScan(options.outputPath, options.totalDuration);
       }
 
-      const successMsg = options.isMerge ? '✔ Arquivo mesclado e verificado com sucesso! 🚀' : '✔ Operação finalizada com sucesso! 🚀';
+      const successMsg = options.isMerge ? t('successMerge') : t('successOp');
       outro(pc.green(successMsg));
     } catch (err) {
-      console.error(pc.red('\nErro ou cancelamento durante a operação.'));
+      console.error(pc.red(t('errorOp')));
       process.exit(1);
     }
     return { action: 'done', deepScanCompleted: dsCompleted };
   } else if (action === 'exit') {
     if (!options.isPerfect) {
-      console.log(`\n${pc.dim('Comando limpo gerado:')}\n${pc.yellow(options.ffmpegCmd)}\n`);
+      console.log(`\n${pc.dim(t('cleanCmdGenerated'))}\n${pc.yellow(options.ffmpegCmd)}\n`);
     }
-    outro('Operação finalizada. 🚀');
+    outro(t('opFinished'));
     return { action: 'exit', deepScanCompleted: dsCompleted };
   }
   
