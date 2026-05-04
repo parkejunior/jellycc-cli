@@ -40,10 +40,7 @@ export async function handleExecutionMenu(options: {
   while (keepMenuOpen) {
     const menuOptions = [];
 
-    if (fileHasErrors && options.ffmpegRepairCmd) {
-      menuOptions.push({ label: pc.yellow(t('menuRunRepairScan')), value: 'run_repair_and_scan' });
-      menuOptions.push({ label: pc.yellow(t('menuRunRepairOnly')), value: 'run_repair' });
-    } else if (!options.isPerfect) {
+    if (!options.isPerfect) {
       if (options.isJustRemux) {
         menuOptions.push({ label: t('menuRunClean'), value: 'run_and_scan' });
         menuOptions.push({ label: t('menuRunCleanOnly'), value: 'run' });
@@ -53,9 +50,16 @@ export async function handleExecutionMenu(options: {
       }
     }
 
+    if (options.ffmpegRepairCmd) {
+      if (fileHasErrors) {
+        menuOptions.push({ label: pc.yellow(t('menuRunRepairScan')), value: 'run_repair_and_scan' });
+      }
+      menuOptions.push({ label: pc.yellow(t('menuRunRepairOnly') || '🩹 Run Repair (Opção Nuclear)'), value: 'run_repair' });
+    }
+
     if (options.allowStreamSelection) {
       menuOptions.push({ label: t('menuModifyStreams'), value: 'select_streams' });
-      menuOptions.push({ label: t('menuEditTags'), value: 'edit_tags' }); // <-- NOVO BOTÃO
+      menuOptions.push({ label: t('menuEditTags'), value: 'edit_tags' });
     }
 
     if (options.allowSyncAdjustment) {
