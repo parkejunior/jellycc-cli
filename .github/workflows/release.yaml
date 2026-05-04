@@ -1,0 +1,39 @@
+name: Build and Release JellyCC
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run Prebuild (YAML to JSON)
+        run: bun run prebuild.ts
+
+      - name: Compile Binary (Linux)
+        run: bun build ./src/index.ts --compile --target=bun-linux-x64 --outfile jellycc-linux-x64
+
+      - name: Create Release and Upload
+        uses: softprops/action-gh-release@v2
+        with:
+          files: jellycc-linux-x64
+          generate_release_notes: true
