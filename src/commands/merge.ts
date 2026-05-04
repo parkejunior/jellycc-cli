@@ -1,9 +1,10 @@
+import { t } from '../utils/i18n.ts';
 import { text, groupMultiselect, note, confirm, select } from '@clack/prompts';
 import pc from 'picocolors';
 import fs from 'fs';
 import path from 'path';
 
-import { onCancel, sanitizePath, handleExecutionMenu } from '../utils/ui.ts';
+import { onCancel, sanitizePath, handleExecutionMenu, editTagsMenu } from '../utils/ui.ts';
 import { getMediaInfo } from '../utils/ffprobe.ts';
 import { buildMergeCommand } from '../utils/builder.ts';
 import { formatFps, formatDuration, formatSize, padLabel, isImageSubtitle, formatSubtitleCodec, calculateTotalFrames } from '../utils/formatters.ts';
@@ -12,22 +13,22 @@ import fallbackRules from '../../dist/rules.json' with { type: 'json' };
 
 export async function mergeCommand(args: string[]) {
   let pathA = onCancel(await text({
-    message: 'Caminho do Arquivo A (Base/Referência):',
+    message: t('mergePathA'),
     placeholder: './filme_video_bom.mkv',
     validate(value) {
       const clean = sanitizePath(value);
-      if (!clean) return 'Obrigatório!';
-      if (!fs.existsSync(clean)) return 'Arquivo não encontrado!';
+      if (!clean) return t('pathRequired');
+      if (!fs.existsSync(clean)) return t('fileNotFound');
     }
   }));
 
   let pathB = onCancel(await text({
-    message: 'Caminho do Arquivo B (Alvo da mesclagem):',
+    message: t('mergePathB'),
     placeholder: './filme_audio_ptbr.mkv',
     validate(value) {
       const clean = sanitizePath(value);
-      if (!clean) return 'Obrigatório!';
-      if (!fs.existsSync(clean)) return 'Arquivo não encontrado!';
+      if (!clean) return t('pathRequired');
+      if (!fs.existsSync(clean)) return t('fileNotFound');
     }
   }));
 
@@ -77,7 +78,7 @@ export async function mergeCommand(args: string[]) {
         const channels = s.channels === 6 ? '5.1' : s.channels === 2 ? 'Stereo' : s.channels;
         label = `[${s.codec_name}] (${lang}) ${channels} Ch | ${hz} | ${bitrate}`;
       } else if (s.codec_type === 'subtitle') {
-        const subStatus = isImageSubtitle(s.codec_name) ? pc.yellow(" ⚠ Risco de Burn-in") : pc.green(" ✔ Seguro");
+        const subStatus = isImageSubtitle(s.codec_name) ? pc.yellow(` ⚠ ${t('checkBurnIn')}`) : pc.green(` ✔ ${t('checkSafe')}`);
         label = `[${formatSubtitleCodec(s.codec_name)}] (${lang})${s.tags?.title ? ` - "${s.tags.title}"` : ''}${subStatus}`;
       } else {
         label = `[${s.codec_type}] ${s.codec_name}`;
@@ -113,9 +114,9 @@ export async function mergeCommand(args: string[]) {
     const subs = info.streams.filter((s: any) => s.codec_type === 'subtitle');
     return {
       duration, size,
-      vSummary: videos.length > 0 ? `${videos[0].codec_name} (${videos[0].width}x${videos[0].height})` : 'Nenhum',
-      aSummary: audios.length > 0 ? `${audios.length} faixa(s) (${audios.map((a: any) => a.codec_name).join(', ')})` : 'Nenhuma',
-      sSummary: subs.length > 0 ? `${subs.length} faixa(s)` : 'Nenhuma'
+      vSummary: videos.length > 0 ? `${videos[0].codec_name} (${videos[0].width}x${videos[0].height})` : t('mergeNone'),
+      aSummary: audios.length > 0 ? `${audios.length} ${t('checkTrack')} (${audios.map((a: any) => a.codec_name).join(', ')})` : t('mergeNone'),
+      sSummary: subs.length > 0 ? `${subs.length} ${t('checkTrack')}` : t('mergeNone')
     };
   };
 
@@ -123,28 +124,29 @@ export async function mergeCommand(args: string[]) {
   const sumB = buildFileSummary(infoB);
 
   note([
-    `${pc.bold(padLabel('Info', 10))} | ${pc.bold(padLabel('Arquivo A (Base)', 30))} | ${pc.bold('Arquivo B (Alvo)')}`,
+    `${pc.bold(padLabel(t('mergeInfo'), 10))} | ${pc.bold(padLabel(t('mergeFileA'), 30))} | ${pc.bold(t('mergeFileB'))}`,
     `${padLabel('----------', 10)}-|-${padLabel('------------------------------', 30)}-|------------------------------`,
-    `${pc.dim(padLabel('Duração', 10))} | ${padLabel(sumA.duration, 30)} | ${sumB.duration}`,
-    `${pc.dim(padLabel('Tamanho', 10))} | ${padLabel(sumA.size, 30)} | ${sumB.size}`,
-    `${pc.dim(padLabel('Vídeo', 10))} | ${padLabel(sumA.vSummary, 30)} | ${sumB.vSummary}`,
-    `${pc.dim(padLabel('Áudios', 10))} | ${padLabel(sumA.aSummary, 30)} | ${sumB.aSummary}`,
-    `${pc.dim(padLabel('Legendas', 10))} | ${padLabel(sumA.sSummary, 30)} | ${sumB.sSummary}`,
-  ].join('\n'), 'Comparação Lado a Lado');
+    `${pc.dim(padLabel(t('mergeDuration'), 10))} | ${padLabel(sumA.duration, 30)} | ${sumB.duration}`,
+    `${pc.dim(padLabel(t('mergeSize'), 10))} | ${padLabel(sumA.size, 30)} | ${sumB.size}`,
+    `${pc.dim(padLabel(t('checkVideo').replace(':', ''), 10))} | ${padLabel(sumA.vSummary, 30)} | ${sumB.vSummary}`,
+    `${pc.dim(padLabel(t('checkAudio').replace(':', ''), 10))} | ${padLabel(sumA.aSummary, 30)} | ${sumB.aSummary}`,
+    `${pc.dim(padLabel(t('checkSubs'), 10))} | ${padLabel(sumA.sSummary, 30)} | ${sumB.sSummary}`,
+  ].join('\n'), t('mergeComparison'));
 
   let { groups, initialValues } = buildGroupedOptions(infoA, infoB);
   let selectedStreams = onCancel(await groupMultiselect({
-    message: `Selecione as faixas que deseja manter (Sugestão de vídeo: Arquivo ${suggestedVideo})`,
+    message: `${t('mergeSelectStreams')} (Sugestão de vídeo: Arquivo ${suggestedVideo})`,
     options: groups,
     required: true,
     initialValues: initialValues.filter(Boolean),
   })) as any[];
 
+  selectedStreams = await editTagsMenu(selectedStreams, infoA, infoB, true);
+
   let currentDelayMs = 0;
   let applyShortest = false;
 
   const askForSync = async () => {
-    // Cálculo mágico do delta exato em milissegundos
     const exactDiffMs = Math.round((durA - durB) * 1000);
     let chosenSyncAction = 'manual';
 
@@ -153,11 +155,11 @@ export async function mergeCommand(args: string[]) {
       const actionWord = exactDiffMs > 0 ? `Atrasar Arquivo B em ${absDiff}ms` : `Adiantar Arquivo B em ${absDiff}ms`;
       
       chosenSyncAction = onCancel(await select({
-        message: 'Como deseja ajustar a sincronia do Arquivo B?',
+        message: t('mergeHowToSync'),
         options: [
-          { label: `⏭️  Auto-alinhar (${actionWord} para igualar ao Arquivo A)`, value: 'auto' },
-          { label: `✏️  Digitar valor manualmente`, value: 'manual' },
-          { label: `❌  Não ajustar (0ms)`, value: 'none' }
+          { label: t('mergeAutoSync', actionWord), value: 'auto' },
+          { label: t('mergeManualSync'), value: 'manual' },
+          { label: t('mergeNoSync'), value: 'none' }
         ]
       })) as string;
     }
@@ -166,7 +168,7 @@ export async function mergeCommand(args: string[]) {
       currentDelayMs = exactDiffMs;
     } else if (chosenSyncAction === 'manual') {
       const delayStr = await text({
-        message: 'Informe o atraso do Arquivo B em milissegundos (ex: 2000 para atrasar 2s, -500 para adiantar 0.5s):',
+        message: t('mergeAskDelay'),
         initialValue: currentDelayMs.toString(),
         validate(value) {
           if (value && isNaN(parseInt(value as string))) return 'Digite um número válido';
@@ -180,15 +182,14 @@ export async function mergeCommand(args: string[]) {
     }
 
     applyShortest = await confirm({
-      message: 'Deseja usar o Modo Estrito (Cortar o arquivo final assim que a trilha mais curta acabar)?',
+      message: t('mergeStrictCut'),
       initialValue: applyShortest
     }) as boolean;
     if (onCancel(applyShortest) === false) applyShortest = false;
   };
 
-  // Automação: Pergunta imediatamente se a diferença for maior que 1 segundo
   if (Math.abs(durA - durB) > 1) {
-    note(pc.yellow(`⚠ Atenção: Uma diferença na duração dos arquivos foi detectada. Isso pode causar falta de sincronia (lip-sync) no resultado final.`), 'Alerta de Duração');
+    note(pc.yellow(t('mergeDurationAlert')), 'Alerta de Duração');
     await askForSync();
   }
 
@@ -198,36 +199,56 @@ export async function mergeCommand(args: string[]) {
 
   let menuLoop = true;
   let dsCompleted = false;
+  let hasMediaErrors = false;
 
   while (menuLoop) {
-    const ffmpegCmd = buildMergeCommand(selectedStreams, infoA, infoB, fallbackRules, pathA as string, pathB as string, outputPath, currentDelayMs, applyShortest);
+    const ffmpegCmd = buildMergeCommand(selectedStreams, infoA, infoB, fallbackRules, pathA as string, pathB as string, outputPath, currentDelayMs, applyShortest, false);
+    const ffmpegRepairCmd = buildMergeCommand(selectedStreams, infoA, infoB, fallbackRules, pathA as string, pathB as string, outputPath, currentDelayMs, applyShortest, true);
 
     let syncMsg = currentDelayMs !== 0 ? pc.dim(` (Sincronia ajustada: ${currentDelayMs}ms)`) : '';
     let cutMsg = applyShortest ? pc.yellow(` [Corte Estrito]`) : '';
-    note(pc.yellow(ffmpegCmd), `Comando FFmpeg Sugerido (Merge)${syncMsg}${cutMsg}`);
+    note(pc.yellow(ffmpegCmd), `${t('mergeCmdSuggested')}${syncMsg}${cutMsg}`);
+
+    // Mapeamento Total: Todos os vídeos/áudios do Arquivo 0 (A) e do Arquivo 1 (B)
+    const fullScanInputs = [pathA as string, pathB as string];
+    const fullScanMaps = [
+      ...infoA.streams.filter((s: any) => s.codec_type === 'video' || s.codec_type === 'audio').map((s: any) => `0:${s.index}`),
+      ...infoB.streams.filter((s: any) => s.codec_type === 'video' || s.codec_type === 'audio').map((s: any) => `1:${s.index}`)
+    ];
 
     const result = await handleExecutionMenu({
       ffmpegCmd,
-      originalPath: pathA as string,
+      ffmpegRepairCmd,
+      fullScanInputs,
+      fullScanMaps,
       outputPath,
       totalDuration: Math.max(durA, durB),
       totalFrames,
       isMerge: true,
       allowStreamSelection: true,
       allowSyncAdjustment: true,
-      deepScanCompleted: dsCompleted
+      deepScanCompleted: dsCompleted,
+      hasErrors: hasMediaErrors,
+      allowMyopicScan: false
     });
 
     dsCompleted = result.deepScanCompleted;
+    hasMediaErrors = result.hasErrors;
 
     if (result.action === 'select_streams') {
       const refreshedOptions = buildGroupedOptions(infoA, infoB, selectedStreams);
       selectedStreams = onCancel(await groupMultiselect({
-        message: 'Modifique as faixas que deseja manter:',
+        message: t('mergeModifyStreams'),
         options: refreshedOptions.groups,
         required: true,
         initialValues: refreshedOptions.initialValues,
       })) as any[];
+
+      selectedStreams = await editTagsMenu(selectedStreams, infoA, infoB, true);
+      
+    } else if (result.action === 'edit_tags') {
+      // Direto ao ponto
+      selectedStreams = await editTagsMenu(selectedStreams, infoA, infoB, false);
     } else if (result.action === 'adjust_sync') {
       await askForSync();
     } else {

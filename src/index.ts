@@ -1,23 +1,50 @@
-import { intro } from '@clack/prompts';
+import { t } from './utils/i18n.ts';
+import { intro, outro } from '@clack/prompts';
 import pc from 'picocolors';
+import { updateSettings } from '@clack/prompts';
+
 import { checkCommand } from './commands/check.ts';
 import { mergeCommand } from './commands/merge.ts';
+import { langCommand } from './commands/lang.ts';
+
+updateSettings({
+  messages: {
+    cancel: t('cancel'),
+  },
+});
 
 async function main() {
-  intro(pc.inverse(' 🎬 JellyCC CLI - Jellyfin Codec & Integrity Checker '));
-
   const args = process.argv.slice(2);
   const command = args[0];
 
-  if (command === 'merge') {
+  let currentCmd = 'check';
+  if (command === 'merge' || command === 'm') currentCmd = 'merge';
+  else if (command === 'lang') currentCmd = 'lang';
+
+  const titleMap: Record<string, string> = {
+    'check': t('titleCheck'),
+    'merge': t('titleMerge'),
+    'lang': t('titleLang')
+  };
+
+  intro(`                           
+    ░█████            ░██ ░██              ░██████    ░██████  
+      ░██             ░██ ░██             ░██   ░██  ░██   ░██ 
+      ░██   ░███████  ░██ ░██ ░██    ░██ ░██        ░██        
+      ░██  ░██    ░██ ░██ ░██ ░██    ░██ ░██        ░██        
+░██   ░██  ░█████████ ░██ ░██ ░██    ░██ ░██        ░██        
+░██   ░██  ░██        ░██ ░██ ░██   ░███  ░██   ░██  ░██   ░██ 
+ ░██████    ░███████  ░██ ░██  ░█████░██   ░██████    ░██████  
+                                     ░██                       
+                               ░███████
+⛬  ${pc.bold(titleMap[currentCmd])}`);
+
+  if (currentCmd === 'check') {
+    await checkCommand(command === 'check' || command === 'c' ? args.slice(1) : args);
+  } else if (currentCmd === 'merge') {
     await mergeCommand(args.slice(1));
-  } else if (command === 'check' || !command || command.startsWith('-')) {
-    // se for "check", se não houver comando, ou se for apenas flag (ex: --deep-scan), roteia para check
-    const checkArgs = command === 'check' ? args.slice(1) : args;
-    await checkCommand(checkArgs);
-  } else {
-    // Tratar como se "command" fosse o path para o check (compatibilidade com versão antiga)
-    await checkCommand(args);
+  } else if (currentCmd === 'lang') {
+    await langCommand();
   }
 }
 

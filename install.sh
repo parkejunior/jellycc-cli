@@ -1,23 +1,37 @@
 #!/bin/bash
 
-echo "🔄 Convertendo arquivos YAML da fonte para JSON..."
-bun run prebuild.ts
+set -e 
 
-# Se o script de pré-build falhar, interrompe a instalação
-if [ $? -ne 0 ]; then
-  echo "✖ Falha na pré-compilação. Abortando."
-  exit 1
+echo "🚀 Starting JellyCC installation..."
+
+# 1. Fetch the latest release version
+echo "🔍 Fetching the latest version..."
+LATEST_VERSION=$(curl -s https://api.github.com/repos/parkejunior/jellycc-cli/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
+if [ -z "$LATEST_VERSION" ]; then
+    echo "✖ Error: Could not find the latest release. Please check if a public release exists."
+    exit 1
 fi
 
-echo "🎬 Compilando o JellyCC..."
-bun build ./src/index.ts --compile --outfile jellycc
+echo "📦 Found version: $LATEST_VERSION"
 
-echo "📦 Movendo binário para a pasta do sistema..."
-mkdir -p ~/.local/bin
-mv jellycc ~/.local/bin/
+# 2. Define the download URL for the binary
+BINARY_URL="https://github.com/parkejunior/jellycc-cli/releases/download/${LATEST_VERSION}/jellycc-linux-x64"
 
-echo "🧹 Limpando arquivos JSON temporários..."
-rm dist/matrix.json dist/rules.json
+# 3. Download the file to a temporary directory
+TMP_FILE="/tmp/jellycc"
+echo "📥 Downloading binary..."
+curl -fsSL "$BINARY_URL" -o "$TMP_FILE"
 
-echo "✔ Instalado com sucesso!"
-echo "Comando global 'jellycc' pronto para uso."
+# 4. Apply execution permissions
+chmod +x "$TMP_FILE"
+
+# 5. Move the binary to the user's local bin directory
+INSTALL_DIR="$HOME/.local/bin"
+mkdir -p "$INSTALL_DIR"
+
+echo "📂 Moving to $INSTALL_DIR..."
+mv "$TMP_FILE" "$INSTALL_DIR/jellycc"
+
+echo "✔ JellyCC installed successfully!"
+echo "💡 The global command 'jellycc' is ready to use."
