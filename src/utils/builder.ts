@@ -203,7 +203,7 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
   }
 
   const aCodecArg = aCodecArgs.length > 0 ? aCodecArgs.join(' ') : '-c:a copy';
-  const shortestArg = applyShortest ? '-shortest ' : '';
+  const shortestArg = (applyShortest && !useRepairMode) ? '-shortest ' : '';
   const extraInputsStr = extraInputs.length > 0 ? extraInputs.join(' ') + ' ' : '';
   const metaStr = metaArgs.length > 0 ? metaArgs.join(' ') + ' ' : '';
 
