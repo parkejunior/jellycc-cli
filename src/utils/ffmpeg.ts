@@ -26,10 +26,11 @@ export function getDynamicAudioEncoder(stream: any, targetCodec: string, outputI
   
   if (targetCodec === 'eac3') {
     targetBitrate = Math.min(targetBitrate, 768);
-    return `-c:a:${outputIndex} eac3 -b:a:${outputIndex} ${targetBitrate}k`;
+  } else if (targetCodec === 'ac3') {
+    targetBitrate = Math.min(targetBitrate, 640);
   }
   
-  return `-c:a:${outputIndex} aac -b:a:${outputIndex} ${targetBitrate}k`;
+  return `-c:a:${outputIndex} ${targetCodec} -b:a:${outputIndex} ${targetBitrate}k`;
 }
 
 export async function runDeepScan(inputs: string[], maps: string[], totalDurationSec: number): Promise<boolean> {

@@ -30,7 +30,7 @@ export function buildCheckCommand(selectedStreams: any[], probeData: any, fallba
         mapArgs.push(`-map 0:${stream.streamIndex}`);
         codecArgs.push(`-c:a:${aOutIdx} copy`);
       } else {
-        const target = fallbackRules.audio.acceptable.includes(stream.codec) ? 'aac' : ((fallbackRules.audio.mappings as any)[stream.codec] || fallbackRules.audio.mappings.default).target;
+        const target = fallbackRules.audio.acceptable.includes(stream.codec) ? stream.codec : ((fallbackRules.audio.mappings as any)[stream.codec] || fallbackRules.audio.mappings.default).target;
         const fullStream = probeData.streams.find((st: any) => st.index === stream.streamIndex);
         const encoderStr = getDynamicAudioEncoder(fullStream, target, aOutIdx);
 
@@ -121,7 +121,7 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
         aCodecArgs.push(`-c:a:${audioOutputIndex} copy`);
         mapArgs.push(`-map ${stream.fileIndex}:${stream.streamIndex}`);
       } else {
-        const target = fallbackRules.audio.acceptable.includes(stream.codec) ? 'aac' : ((fallbackRules.audio.mappings as any)[stream.codec] || fallbackRules.audio.mappings.default).target;
+        const target = fallbackRules.audio.acceptable.includes(stream.codec) ? stream.codec : ((fallbackRules.audio.mappings as any)[stream.codec] || fallbackRules.audio.mappings.default).target;
         const sourceInfo = stream.fileIndex === 0 ? infoA : infoB;
         const fullStream = sourceInfo.streams.find((st: any) => st.index === stream.streamIndex);
         const encoderStr = getDynamicAudioEncoder(fullStream, target, audioOutputIndex);
