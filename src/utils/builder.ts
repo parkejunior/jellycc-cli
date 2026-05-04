@@ -81,7 +81,7 @@ export function buildCheckCommand(selectedStreams: any[], probeData: any, fallba
 
   const extraInputsStr = extraInputs.length > 0 ? extraInputs.join(' ') + ' ' : '';
   const metaStr = metaArgs.length > 0 ? metaArgs.join(' ') + ' ' : '';
-  const mainCmd = `ffmpeg -y -fflags +genpts -i "${videoPath}" ${extraInputsStr}${mapArgs.join(' ')} ${codecArgs.join(' ')} ${metaStr}-max_muxing_queue_size 1024 -metadata encoded_by="JellyCC" -threads 0 "${outputPath}"`;
+  const mainCmd = `ffmpeg -y -fflags +genpts -i "${videoPath}" ${extraInputsStr}${mapArgs.join(' ')} ${codecArgs.join(' ')} ${metaStr}-max_muxing_queue_size 99999 -metadata encoded_by="JellyCC" -threads 0 "${outputPath}"`;
 
   if (useRepairMode && preCmds.length > 0) {
     return `${preCmds.join(' && ')} && ${mainCmd} && ${postCmds.join(' && ')}`;
@@ -207,7 +207,7 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
   const extraInputsStr = extraInputs.length > 0 ? extraInputs.join(' ') + ' ' : '';
   const metaStr = metaArgs.length > 0 ? metaArgs.join(' ') + ' ' : '';
 
-  const mainCmd = `ffmpeg -y -fflags +genpts ${offsetA}-i "${pathA}" -fflags +genpts ${offsetB}-i "${pathB}" ${extraInputsStr}${mapArgs.join(' ')} ${vCodecArg} ${aCodecArg} ${sCodecArg} ${shortestArg}${metaStr}-max_muxing_queue_size 1024 -metadata encoded_by="JellyCC" -threads 0 "${outputPath}"`;
+  const mainCmd = `ffmpeg -y -fflags +genpts ${offsetA}-i "${pathA}" -fflags +genpts ${offsetB}-i "${pathB}" ${extraInputsStr}${mapArgs.join(' ')} ${vCodecArg} ${aCodecArg} ${sCodecArg} ${shortestArg}${metaStr}-max_muxing_queue_size 99999 -metadata encoded_by="JellyCC" -threads 0 "${outputPath}"`;
 
   if (useRepairMode && preCmds.length > 0) {
     return `${preCmds.join(' && ')} && ${mainCmd} && ${postCmds.join(' && ')}`;
