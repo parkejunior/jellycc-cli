@@ -13,7 +13,19 @@ export function buildCheckCommand(selectedStreams: any[], probeData: any, fallba
 
   for (const stream of selectedStreams) {
     if (stream.type === 'video') {
-      mapArgs.push(`-map 0:${stream.streamIndex}`);
+      if (useRepairMode) {
+        // Máquina de Lavar de Vídeo para o Check
+        const cleanVideoPath = `${outputPath}.temp_video_${vOutIdx}.mp4`;
+        preCmds.push(`ffmpeg -y -i "${videoPath}" -map 0:${stream.streamIndex} -c:v copy "${cleanVideoPath}"`);
+        postCmds.push(`rm -f "${cleanVideoPath}"`);
+        extraInputs.push(`-i "${cleanVideoPath}"`);
+
+        mapArgs.push(`-map ${currentExtraInputIdx}:0`);
+        currentExtraInputIdx++;
+      } else {
+        mapArgs.push(`-map 0:${stream.streamIndex}`);
+      }
+
       if (isVideoCompatible) {
         codecArgs.push(`-c:v:${vOutIdx} copy`);
       } else {
@@ -115,7 +127,7 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
 
   for (const stream of selectedStreams) {
     if (stream.type === 'audio') {
-      const applyRepairToThisStream = useRepairMode && stream.fileIndex !== anchorVideoFileIndex;
+      const applyRepairToThisStream = useRepairMode;
 
       if (!applyRepairToThisStream && fallbackRules.audio.acceptable.includes(stream.codec)) {
         aCodecArgs.push(`-c:a:${audioOutputIndex} copy`);
@@ -155,7 +167,25 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
       audioOutputIndex++;
       
     } else if (stream.type === 'video') {
-      mapArgs.push(`-map ${stream.fileIndex}:${stream.streamIndex}`);
+      if (useRepairMode) {
+        // A Máquina de Lavar de Vídeo para o Merge (Conserta o Relógio Quebrado)
+        const cleanVideoPath = `${outputPath}.temp_video_${videoOutputIndex}.mp4`;
+        const sourcePath = stream.fileIndex === 0 ? pathA : pathB;
+        
+        preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -c:v copy "${cleanVideoPath}"`);
+        postCmds.push(`rm -f "${cleanVideoPath}"`);
+        
+        let currentOffset = '';
+        if (stream.fileIndex === 0) currentOffset = offsetA;
+        if (stream.fileIndex === 1) currentOffset = offsetB;
+        
+        extraInputs.push(`${currentOffset}-i "${cleanVideoPath}"`);
+        mapArgs.push(`-map ${currentExtraInputIdx}:0`);
+        currentExtraInputIdx++;
+      } else {
+        mapArgs.push(`-map ${stream.fileIndex}:${stream.streamIndex}`);
+      }
+
       if (stream.language !== undefined) {
         metaArgs.push(`-metadata:s:v:${videoOutputIndex} language="${stream.language}"`);
         metaArgs.push(`-metadata:s:v:${videoOutputIndex} title="${stream.title}"`);
