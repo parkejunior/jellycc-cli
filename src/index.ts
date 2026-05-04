@@ -2,6 +2,7 @@ import { t } from './utils/i18n.ts';
 import { intro, outro } from '@clack/prompts';
 import pc from 'picocolors';
 import { updateSettings } from '@clack/prompts';
+import pkg from '../package.json';
 
 import { checkCommand } from './commands/check.ts';
 import { mergeCommand } from './commands/merge.ts';
@@ -36,7 +37,7 @@ async function main() {
 ░██   ░██  ░██        ░██ ░██ ░██   ░███  ░██   ░██  ░██   ░██ 
  ░██████    ░███████  ░██ ░██  ░█████░██   ░██████    ░██████  
                                      ░██                       
-                               ░███████
+                               ░███████  v${pkg.version}
 ⛬  ${pc.bold(titleMap[currentCmd])}`);
 
   if (currentCmd === 'check') {
