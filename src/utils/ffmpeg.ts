@@ -44,7 +44,9 @@ export async function runDeepScan(inputs: string[], maps: string[], totalDuratio
     const ffmpegArgs = ['-v', 'warning', '-stats'];
     inputs.forEach(inp => { ffmpegArgs.push('-i', inp); });
     maps.forEach(m => { ffmpegArgs.push('-map', m); });
-    ffmpegArgs.push('-f', 'null', '-');
+    
+    // O ESCUDO DEFINITIVO: Ignora qualquer legenda (-sn) e qualquer dado/fonte (-dn)
+    ffmpegArgs.push('-sn', '-dn', '-f', 'null', '-');
 
     const ff = spawn('ffmpeg', ffmpegArgs);
     let errorOutput = '';

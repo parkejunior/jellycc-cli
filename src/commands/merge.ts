@@ -4,7 +4,7 @@ import pc from 'picocolors';
 import fs from 'fs';
 import path from 'path';
 
-import { onCancel, sanitizePath, handleExecutionMenu } from '../utils/ui.ts';
+import { onCancel, sanitizePath, handleExecutionMenu, editTagsMenu } from '../utils/ui.ts';
 import { getMediaInfo } from '../utils/ffprobe.ts';
 import { buildMergeCommand } from '../utils/builder.ts';
 import { formatFps, formatDuration, formatSize, padLabel, isImageSubtitle, formatSubtitleCodec, calculateTotalFrames } from '../utils/formatters.ts';
@@ -141,6 +141,8 @@ export async function mergeCommand(args: string[]) {
     initialValues: initialValues.filter(Boolean),
   })) as any[];
 
+  selectedStreams = await editTagsMenu(selectedStreams, infoA, infoB, true);
+
   let currentDelayMs = 0;
   let applyShortest = false;
 
@@ -241,6 +243,12 @@ export async function mergeCommand(args: string[]) {
         required: true,
         initialValues: refreshedOptions.initialValues,
       })) as any[];
+
+      selectedStreams = await editTagsMenu(selectedStreams, infoA, infoB, true);
+      
+    } else if (result.action === 'edit_tags') {
+      // Direto ao ponto
+      selectedStreams = await editTagsMenu(selectedStreams, infoA, infoB, false);
     } else if (result.action === 'adjust_sync') {
       await askForSync();
     } else {
