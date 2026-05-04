@@ -35,7 +35,7 @@ export function buildCheckCommand(selectedStreams: any[], probeData: any, fallba
         const encoderStr = getDynamicAudioEncoder(fullStream, target, aOutIdx);
 
         if (useRepairMode) {
-          const wavPath = `${outputPath}.temp_audio_${aOutIdx}.wav`;
+          const wavPath = `${outputPath}.temp_audio_${aOutIdx}.w64`;
           preCmds.push(`ffmpeg -y -i "${videoPath}" -map 0:${stream.streamIndex} -c:a pcm_s16le "${wavPath}"`);
           postCmds.push(`rm -f "${wavPath}"`);
           extraInputs.push(`-i "${wavPath}"`);
@@ -127,7 +127,7 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
         const encoderStr = getDynamicAudioEncoder(fullStream, target, audioOutputIndex);
 
         if (applyRepairToThisStream) {
-          const wavPath = `${outputPath}.temp_audio_${audioOutputIndex}.wav`;
+          const wavPath = `${outputPath}.temp_audio_${audioOutputIndex}.w64`;
           const sourcePath = stream.fileIndex === 0 ? pathA : pathB;
           
           preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -c:a pcm_s16le "${wavPath}"`);
