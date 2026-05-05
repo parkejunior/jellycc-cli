@@ -21,9 +21,9 @@ try {
   fs.writeFileSync('./dist/matrix.json', JSON.stringify(matrix));
   fs.writeFileSync('./dist/rules.json', JSON.stringify(rules));
 
-  console.log(pc.green('✔ YAMLs convertidos para JSON com sucesso!'));
+  console.log(pc.green('✔ YAML files successfully converted to JSON!'));
 } catch (error) {
-  console.error(pc.red('✖ Erro ao converter YAML para JSON. Verifique se os arquivos existem.'));
+  console.error(pc.red('✖ Failed to convert YAML to JSON. Please verify that the files exist.'));
   console.error(error);
   process.exit(1);
 }

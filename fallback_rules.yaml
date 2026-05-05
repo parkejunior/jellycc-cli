@@ -1,18 +1,16 @@
-# Configuração de conversão inteligente para o CLI
-
 container: "mkv"
 
 video:
   target: "h264_8bit"
 
 audio:
-  # Formatos que consideramos ideais e NÃO precisam de conversão
+  # Formats considered ideal that do NOT require conversion
   acceptable:
     - aac
     - eac3
     - flac
   
-  # Regras de conversão se o codec original não estiver na lista acima
+  # Conversion rules if the original codec is not listed above
   mappings:
     ac3:
       target: "eac3"
