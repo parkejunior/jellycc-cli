@@ -1,70 +1,116 @@
 <div align="center">
   <h1 align="center">JellyCC CLI</h1>
+</div>
+<p align="center">
+  A smart CLI that diagnoses, audits, repairs, standardizes, and optimizes your media to ensure <i>Direct Play</i> on Jellyfin.
+</p>
+
+<p align="center">
+  <a href="https://bun.sh/"><img src="https://img.shields.io/badge/Bun-%23000000.svg?style=flat&logo=bun&logoColor=white" /></a> 
+  <a href="https://bomb.sh/"><img src="https://img.shields.io/badge/Bombshell-ff00d0?style=flat&logo=diaspora&logoColor=white" /></a> 
+  <a href="https://ffmpeg.org/"><img src="https://img.shields.io/badge/FFmpeg-007808?style=flat&logo=ffmpeg&logoColor=white" /></a>
+</p>
+
+<p align="center">
+  <a href="README.md">🇬🇧 English</a> |
+  <a href="README.pt.md">🇧🇷 Português (Brasil)</a>
+</p>
+
+<div align="center">
   <img src="docs/assets/images/screenshot.png" alt="JellyCC CLI Screenshot" width="800" />
 </div>
 
-Uma CLI inteligente que diagnostica, audita e otimiza sua mídia para garantir _Direct Play_ no seu Jellyfin.
+## ✨ Features
 
-[![Bun](https://img.shields.io/badge/Bun-%23000000.svg?style=flat&logo=bun&logoColor=white)](https://bun.sh/) [![FFmpeg](https://img.shields.io/badge/FFmpeg-007808?style=flat&logo=ffmpeg&logoColor=white)](https://ffmpeg.org/)
+- 🔍 **Compatibility Analysis** — Compatibility matrix for Direct Play per Jellyfin client (Chrome, Firefox, Android TV, etc.).
+- 🚀 **Cleanup (Remux)** — Re-wraps to MKV without re-encoding, preserving the original quality.
+- 🔄 **Conversion (Transcode)** — Converts to Direct Play codecs (H.264 8-bit / AAC, EAC3, or FLAC) with configurable fallback rules.
+- 🔧 **Forced Repair** — Fixes files with corrupted timestamps via an intermediate pipeline (`.w64`/`.mp4`).
+- 🔬 **Quick Scan + Deep Scan** — Checks container integrity and analyzes frame by frame looking for artifacts and errors.
+- 🔬 **Myopic Scan** — Deep Scan restricted to selected tracks.
+- 🎛️ **Track Selection** — Choose which video, audio, and subtitle streams to keep in the final file.
+- ⏱️ **Sync Adjustment / End Cut** — Defines time offset and end cut to avoid lip-sync issues.
+- 🔀 **File Merging** — Merges tracks from two files into a single MKV, with automatic/manual sync and Strict Mode.
+- 🏷️ **Tag Editing** — Edits language (e.g., `por`, `eng`, `jpn`) and title for each track.
+- 🌐 **Internationalization** — Interface in English (en-US) and Brazilian Portuguese (pt-BR).
+- ⚠️ **Embedded Junk Detection** — Detects and removes covers/thumbnails and PGS subtitles that force transcoding.
 
-## ✨ Funcionalidades
+## 🛠️ Prerequisites
 
-- **Motor de Qualidade Dinâmica:** Transcoding visualmente sem perdas (CRF 18) e áudio otimizado matematicamente por canal, sem inflar o tamanho do arquivo original.
-- **Remuxing Inteligente (`merge`):** Mescle a imagem de um release de alta qualidade com dublagens e legendas de outros arquivos. O "Juiz Visual" elege a melhor base de vídeo automaticamente.
-- **Progress UI & Tail Log:** Conversões e varreduras exibem barras de progresso dinâmicas e logs limpos em tempo real, sem poluir o terminal.
-- **Inteligência de Legendas:** Detecta legendas baseadas em imagens (PGS/VobSub) e alerta sobre o risco de _Burn-in_ (gargalo de CPU no servidor).
-- **Auto-Limpeza de Container:** Remove fotos anexadas (capas `mjpeg`/`png`) para prevenir corrupção e erros de FPS.
-- **Verificação de Integridade:** `Quick Scan` para validar cabeçalhos e `Deep Scan` (quadro a quadro) para caçar artefatos e falhas no bitstream.
+- **[FFmpeg & FFprobe](https://www.ffmpeg.org/download.html)** (Installed globally on the system)
 
-## 🛠️ Pré-requisitos
-
-- **[Bun](https://bun.sh/)** (Runtime JavaScript)
-- **FFmpeg & FFprobe** (Instalados globalmente no sistema)
-
-## 📦 Instalação
+## 📦 Installation
 
 > [!IMPORTANT]
-> Certifique-se de que o **FFmpeg** e o **FFprobe** estejam instalados no seu sistema de forma global, pois o JellyCC depende estritamente deles para realizar as análises e conversões.
+> Make sure **FFmpeg** and **FFprobe** are installed globally on your system, as JellyCC strictly depends on them to perform analysis and conversions.
 
-1. Clone o repositório.
-2. Dê permissão de execução ao script:
-   ```bash
-   chmod +x ./install.sh
-   ```
-3. Execute o script de instalação:
-   ```bash
-   ./install.sh
-   ```
+Run the installation script:
+```bash
+curl -fsSL [https://raw.githubusercontent.com/parkejunior/jellycc-cli/main/install.sh](https://raw.githubusercontent.com/parkejunior/jellycc-cli/main/install.sh) | bash
+```
+## 🚀 Usage
 
-## 🚀 Como Usar
+### Analysis and Cleanup
 
-> [!TIP]
-> Arraste e solte o arquivo de vídeo direto no terminal para preencher o caminho automaticamente.
-
-### 🔍 Analisar e Otimizar (`check`)
-
-Cruza a mídia com a matriz de suporte e sugere (ou executa) o comando de conversão.
+To analyze a video file, run the command:
+```bash
+jellycc
+```
+Or if you prefer, you can open the file directly in the terminal:
 
 ```bash
-jellycc /caminho/do/filme.mkv
+jellycc check [path/to/file]
+# or
+jellycc [path/to/file]
 ```
 
-### ☄️ Auditoria Forçada (`--deep-scan`)
-
-Varredura profunda para garantir que o arquivo não está corrompido.
-
+If you want to run the full analysis, include the `--deep-scan` parameter:
 ```bash
-jellycc --deep-scan /caminho/do/filme.mkv
+jellycc check [path/to/file] --deep-scan
 ```
 
-### 🧬 Mesclar Arquivos (`merge`)
+### Merging
 
-Abre um painel interativo para selecionar trilhas de áudio, vídeo e legenda de múltiplas fontes.
-
+To merge multiple files into a single MKV, run the command:
 ```bash
 jellycc merge
 ```
 
-## ⚙️ Configuração (Fallback Rules)
+### Language
 
-A "fonte da verdade" do JellyCC mora no arquivo `fallback_rules.yaml`. É nele que você define os alvos ideais do seu servidor. Por padrão, ele está otimizado para a máxima compatibilidade (`MKV`, `H264`, `EAC3`/`AAC`). O motor interno ajustará os parâmetros técnicos automaticamente baseado nessas regras.
+If you want to change the interface language, run the command:
+```bash
+jellycc lang
+```
+
+> [!TIP]
+> Drag and drop the video file directly into the terminal to automatically fill in the path.
+
+> [!NOTE]
+> The result is saved in the same folder as the original media with the suffixes `.jellycc.mkv` or `.jellycc_merged.mkv`.
+
+## ☰ Interactive Menu
+
+After analyzing a file, an interactive menu is displayed with the following options:
+
+- 🚀 **Cleanup (Remux)** — Re-wraps without re-encoding.
+- 🔄 **Conversion** — Converts incompatible codecs for *Direct Play*.
+- 🔧 **Forced Repair** — Re-encoding via an intermediate pipeline for files with corrupted timestamps.
+- 🎛️ **Modify tracks** — Selects which video, audio, and subtitle streams to keep.
+- ⏱️ **Adjust Sync / End Cut** — Defines time offset and end cut.
+- 🔍 **Deep Scan** — Frame-by-frame analysis of all tracks.
+- 🔬 **Myopic Scan** — Deep Scan only on selected tracks.
+- 🏷️ **Edit Tags** — Edits language and title of each track.
+
+## ⚙️ Configuration
+
+JellyCC uses two main configuration files:
+
+- **`jellyfin-codec-support.yaml`** — Compatibility matrix per client (Chrome, Firefox, Android TV, etc.) based on the official Jellyfin [documentation](https://jellyfin.org/docs/general/clients/codec-support/).
+- **`fallback_rules.yaml`** — Conversion rules (container, video and audio codec).
+
+You can edit these files according to your needs. Language preferences are automatically saved in `~/.jellycc.json`.
+
+## ⚖️ License
+
+JellyCC is licensed under the terms of the [MIT + Commons Clause](LICENSE).
