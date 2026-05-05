@@ -20,7 +20,7 @@ export async function checkCommand(args: string[]) {
   if (!videoPath) {
     let rawPath = onCancel(await text({
       message: t('checkAskVideo'),
-      placeholder: './filme.mkv',
+      placeholder: './spider-man.mkv',
       validate(value) {
         const clean = sanitizePath(value);
         if (!clean) return t('pathRequired');

@@ -14,7 +14,7 @@ import fallbackRules from '../../dist/rules.json' with { type: 'json' };
 export async function mergeCommand(args: string[]) {
   let pathA = onCancel(await text({
     message: t('mergePathA'),
-    placeholder: './filme_video_bom.mkv',
+    placeholder: './spider-man_4k.mkv',
     validate(value) {
       const clean = sanitizePath(value);
       if (!clean) return t('pathRequired');
@@ -24,7 +24,7 @@ export async function mergeCommand(args: string[]) {
 
   let pathB = onCancel(await text({
     message: t('mergePathB'),
-    placeholder: './filme_audio_ptbr.mkv',
+    placeholder: './spider-man_pt-br.mkv',
     validate(value) {
       const clean = sanitizePath(value);
       if (!clean) return t('pathRequired');
