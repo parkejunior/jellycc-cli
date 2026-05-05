@@ -1,6 +1,5 @@
 # Jellyfin Codec Support Matrix
-# Fonte: https://jellyfin.org/docs/general/clients/codec-support/
-# Estrutura preparada para scripts de automação (ffprobe/ffmpeg)
+# Reference: https://jellyfin.org/docs/general/clients/codec-support/
 
 metadata:
   version: "1.1"
@@ -13,13 +12,13 @@ clients:
       mpeg4_part2_asp: false
       h264_8bit: true
       h264_10bit: true
-      hevc_8bit: "Chromium 107+ suporta se a descodificação de hardware estiver disponível."
-      hevc_10bit: "Chromium 107+ suporta se a descodificação de hardware estiver disponível."
+      hevc_8bit: "mx_chrome_hevc"
+      hevc_10bit: "mx_chrome_hevc"
       vp9: true
       av1: true
     audio:
       flac: true
-      mp3: "Mono é reportado incorretamente como não suportado e causará transcode para AAC."
+      mp3: "mx_mp3_mono"
       aac: true
       ac3: true
       eac3: true
@@ -29,7 +28,7 @@ clients:
       alac: false
     containers:
       mp4: true
-      mkv: "Requer pelo menos Chrome 145."
+      mkv: "mx_chrome_mkv"
       webm: true
       ts: true
       ogg: true
@@ -40,8 +39,8 @@ clients:
       mpeg4_part2_asp: false
       h264_8bit: true
       h264_10bit: false
-      hevc_8bit: "Firefox 134+ no Windows/macOS/Linux. Requer extensões HEVC no Windows e ffmpeg no Linux."
-      hevc_10bit: "Firefox 134+ no Windows/macOS/Linux. Requer extensões HEVC no Windows e ffmpeg no Linux."
+      hevc_8bit: "mx_firefox_hevc"
+      hevc_10bit: "mx_firefox_hevc"
       vp9: true
       av1: true
     audio:
@@ -56,7 +55,7 @@ clients:
       alac: false
     containers:
       mp4: true
-      mkv: "Desativado no Jellyfin devido a problemas graves de estabilidade."
+      mkv: "mx_firefox_mkv"
       webm: true
       ts: true
       ogg: true
@@ -66,27 +65,27 @@ clients:
       mpeg4_part2_sp: false
       mpeg4_part2_asp: false
       h264_8bit: true
-      h264_10bit: "Deve ser ativado manualmente. Pode causar frames vazios em Macs Intel ou macOS < 14."
-      hevc_8bit: "Apenas em MP4/M4V/MOV. Requer chip A8X+ e pelo menos iOS 14."
-      hevc_10bit: "Apenas em MP4/M4V/MOV. Requer chip A8X+ e pelo menos iOS 14."
-      vp9: "Requer pelo menos Safari 14."
-      av1: "Apenas em chips A17 ou M3+ e pelo menos Safari 17."
+      h264_10bit: "mx_safari_h264_10bit"
+      hevc_8bit: "mx_safari_hevc"
+      hevc_10bit: "mx_safari_hevc"
+      vp9: "mx_safari_vp9"
+      av1: "mx_safari_av1"
     audio:
       flac: true
       mp3: true
       aac: true
       ac3: true
       eac3: true
-      vorbis: "iOS 18.4 / macOS 15.4+ suporta em containers OGG."
+      vorbis: "mx_safari_vorbis"
       dts: false
-      opus: "iOS 17+ suporta stereo em MP4; iOS 18.4+ em OGG; Nativo apenas em .caf."
+      opus: "mx_safari_opus"
       alac: true
     containers:
       mp4: true
       mkv: false
-      webm: "Requer pelo menos Safari 14."
+      webm: "mx_safari_vp9"
       ts: true
-      ogg: "Requer pelo menos iOS 18.4 / macOS 15.4."
+      ogg: "mx_safari_ogg"
 
   android_app:
     video:
@@ -94,9 +93,9 @@ clients:
       mpeg4_part2_asp: false
       h264_8bit: true
       h264_10bit: true
-      hevc_8bit: "Suportado em Android 5.0+, mas gera erro em gerações antigas do Amazon Fire."
-      hevc_10bit: "Dependente do hardware do dispositivo."
-      vp9: "Dependente do suporte de hardware (comum em dispositivos de gama alta/4K)."
+      hevc_8bit: "mx_android_hevc"
+      hevc_10bit: "mx_hw_device"
+      vp9: "mx_android_vp9"
       av1: true
     audio:
       flac: true
@@ -121,10 +120,10 @@ clients:
       mpeg4_part2_asp: false
       h264_8bit: true
       h264_10bit: false
-      hevc_8bit: "Suportado em Android 5.0+; 10Bit depende do hardware."
-      hevc_10bit: "Dependente do hardware do dispositivo."
-      vp9: "Dependente do suporte de hardware."
-      av1: "Requer pelo menos Android TV 10."
+      hevc_8bit: "mx_android_tv_hevc"
+      hevc_10bit: "mx_hw_device"
+      vp9: "mx_hw_support"
+      av1: "mx_android_tv_av1"
     audio:
       flac: true
       mp3: true
@@ -148,18 +147,18 @@ clients:
       mpeg4_part2_asp: true
       h264_8bit: true
       h264_10bit: true
-      hevc_8bit: "Suportado apenas em dispositivos 4K."
-      hevc_10bit: "Suportado apenas em dispositivos 4K."
+      hevc_8bit: "mx_4k_only"
+      hevc_10bit: "mx_4k_only"
       vp9: true
-      av1: "Dependente do hardware do modelo."
+      av1: "mx_hw_model"
     audio:
       flac: true
       mp3: true
       aac: true
-      ac3: "Nativo em Roku TVs e Ultra; Passthrough nos outros."
-      eac3: "Nativo em Roku TVs e Ultra; Passthrough nos outros."
+      ac3: "mx_roku_ac3"
+      eac3: "mx_roku_ac3"
       vorbis: true
-      dts: "Suportado via Passthrough em todos os dispositivos."
+      dts: "mx_roku_dts"
       opus: true
       alac: true
     containers:

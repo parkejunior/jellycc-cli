@@ -71,7 +71,7 @@ export async function checkCommand(args: string[]) {
     if (!key) return pc.dim(t('checkUnknown'));
     if (status === true) return pc.green(t('checkDirectPlay'));
     if (status === false) return pc.red(t('checkTranscode'));
-    if (typeof status === 'string') return `${pc.yellow(t('checkConditional'))} ${status}`;
+    if (typeof status === 'string') return `${pc.yellow(t('checkConditional'))} ${t(status)}`;
     return pc.gray(`${t('checkUnknown')} (${key})`);
   };
 
