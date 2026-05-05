@@ -135,7 +135,7 @@ export async function mergeCommand(args: string[]) {
 
   let { groups, initialValues } = buildGroupedOptions(infoA, infoB);
   let selectedStreams = onCancel(await groupMultiselect({
-    message: `${t('mergeSelectStreams')} (Sugestão de vídeo: Arquivo ${suggestedVideo})`,
+    message: `${t('mergeSelectStreams')} (${t('fileSuggest', suggestedVideo)})`,
     options: groups,
     required: true,
     initialValues: initialValues.filter(Boolean),
@@ -152,7 +152,7 @@ export async function mergeCommand(args: string[]) {
 
     if (exactDiffMs !== 0) {
       const absDiff = Math.abs(exactDiffMs);
-      const actionWord = exactDiffMs > 0 ? `Atrasar Arquivo B em ${absDiff}ms` : `Adiantar Arquivo B em ${absDiff}ms`;
+      const actionWord = exactDiffMs > 0 ? t('delayBehind', absDiff) : t('delayAhead', absDiff);
       
       chosenSyncAction = onCancel(await select({
         message: t('mergeHowToSync'),
@@ -205,8 +205,8 @@ export async function mergeCommand(args: string[]) {
     const ffmpegCmd = buildMergeCommand(selectedStreams, infoA, infoB, fallbackRules, pathA as string, pathB as string, outputPath, currentDelayMs, applyShortest, false);
     const ffmpegRepairCmd = buildMergeCommand(selectedStreams, infoA, infoB, fallbackRules, pathA as string, pathB as string, outputPath, currentDelayMs, applyShortest, true);
 
-    let syncMsg = currentDelayMs !== 0 ? pc.dim(` (Sincronia ajustada: ${currentDelayMs}ms)`) : '';
-    let cutMsg = applyShortest ? pc.yellow(` [Corte Estrito]`) : '';
+    let syncMsg = currentDelayMs !== 0 ? pc.dim(t('syncAdjusted', currentDelayMs)) : '';
+    let cutMsg = applyShortest ? pc.yellow(t('strictCut')) : '';
     note(pc.yellow(ffmpegCmd), `${t('mergeCmdSuggested')}${syncMsg}${cutMsg}`);
 
     // Mapeamento Total: Todos os vídeos/áudios do Arquivo 0 (A) e do Arquivo 1 (B)

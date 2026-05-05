@@ -1,3 +1,5 @@
+import { t } from './i18n.ts';
+
 export const formatFps = (fpsStr: string | undefined) => {
   if (!fpsStr) return '?? fps';
   const parts = fpsStr.split('/');
@@ -32,7 +34,7 @@ export const formatSampleRate = (hz: string | number | undefined) => {
 export const formatChannels = (ch: string | number | undefined) => {
   const chNum = typeof ch === 'string' ? parseInt(ch) : ch;
   if (!chNum) return '?? ch';
-  if (chNum === 2) return 'Estéreo';
+  if (chNum === 2) return t('fmtStereo');
   if (chNum === 6) return '5.1';
   if (chNum === 8) return '7.1';
   return `${chNum} ch`;

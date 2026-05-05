@@ -153,11 +153,11 @@ export async function editTagsMenu(selectedStreams: any[], infoA: any, infoB?: a
   let looping = true;
   while (looping) {
     const options = selectedStreams.map((s, index) => {
-      let typeLabel = s.type === 'subtitle' ? 'Sub' : (s.type === 'audio' ? 'Áudio' : 'Vídeo');
+      let typeLabel = s.type === 'subtitle' ? t('typeSub') : (s.type === 'audio' ? t('typeAudio') : t('typeVideo'));
       let label = `[${typeLabel}] ${s.codec.toUpperCase()}`;
-      if (s.fileIndex !== undefined) label += ` (Arq ${s.fileIndex === 0 ? 'A' : 'B'})`;
-      label += ` | Idioma: ${s.language.toUpperCase()}`;
-      if (s.title) label += ` | Título: "${s.title}"`;
+      if (s.fileIndex !== undefined) label += t('fileArq', s.fileIndex === 0 ? 'A' : 'B');
+      label += `${t('tagLang')}${s.language.toUpperCase()}`;
+      if (s.title) label += `${t('tagTitle')}"${s.title}"`;
 
       return { label, value: index };
     });

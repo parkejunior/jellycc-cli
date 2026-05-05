@@ -83,8 +83,8 @@ export async function checkCommand(args: string[]) {
     const vStatus = matrix.video[vKey];
     const aStatus = matrix.audio[aKey];
 
-    let badge = (cStatus === true && vStatus === true && aStatus === true) ? pc.green('[Tudo Verde]') : 
-                (cStatus === false || vStatus === false || aStatus === false) ? pc.red('[Requer Transcode]') : pc.yellow('[Atenção/Condicional]');
+    let badge = (cStatus === true && vStatus === true && aStatus === true) ? pc.green(t('badgeGreen')) : 
+                (cStatus === false || vStatus === false || aStatus === false) ? pc.red(t('badgeTranscode')) : pc.yellow(t('badgeWarning'));
 
     resultText += `\n${pc.bold(client.toUpperCase())} ${badge}\n  Container: ${formatResult(cStatus, cKey)}\n  Vídeo:     ${formatResult(vStatus, vKey)}\n  Áudio:     ${formatResult(aStatus, aKey)}\n`;
   }
@@ -194,7 +194,7 @@ export async function checkCommand(args: string[]) {
   }
 
   const buildGroupedOptions = (info: any, currentSelected: any[]) => {
-    const groups: Record<string, any[]> = { '🎬 Vídeo': [], '🔊 Áudio': [], '💬 Legendas e Outros': [] };
+    const groups: Record<string, any[]> = { [t('groupVideo')]: [], [t('groupAudio')]: [], [t('groupSubs')]: [] };
     const initialValues: any[] = [];
 
     info.streams.forEach((s: any) => {
