@@ -2,7 +2,7 @@
 
 ## [0.2.0](https://github.com/parkejunior/jellycc-cli/compare/v0.1.1...v0.2.0) (2026-05-05)
 
-## Internationalization 🇧🇷🇬🇧
+### Internationalization 🇧🇷🇬🇧
 JellyCC now supports internationalization across the entire interface (some parts were still untranslated).
 
 ### Features
