@@ -25,6 +25,8 @@ export default {
   errorOp: '\nError or cancellation during operation.',
   cleanCmdGenerated: 'Clean command generated:',
   opFinished: 'Operation finished. 🚀',
+  unknown: 'UNKNOWN',
+  visuallyLossless: 'Visually Lossless (CRF 18)',
 
   // Command: Check
   checkAskVideo: 'What is the video file path?',

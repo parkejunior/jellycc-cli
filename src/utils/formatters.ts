@@ -69,7 +69,7 @@ export const isImageSubtitle = (codecName: string | undefined): boolean => {
 };
 
 export const formatSubtitleCodec = (codecName: string | undefined): string => {
-  if (!codecName) return 'UNKNOWN';
+  if (!codecName) return t('unknown');
   const lower = codecName.toLowerCase();
   if (lower === 'hdmv_pgs_subtitle') return 'PGS';
   if (lower === 'subrip') return 'SRT';

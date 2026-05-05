@@ -60,7 +60,7 @@ export async function mergeCommand(args: string[]) {
   }
 
   const buildGroupedOptions = (infoA: any, infoB: any, currentSelected?: any[]) => {
-    const groups: Record<string, any[]> = { '🎬 Vídeo': [], '🔊 Áudio': [], '💬 Legendas e Outros': [] };
+    const groups: Record<string, any[]> = { [t('groupVideo')]: [], [t('groupAudio')]: [], [t('groupSubs')]: [] };
     const initialValues: any[] = [];
 
     const processStream = (s: any, fileLabel: string, fileIndex: number) => {
@@ -75,7 +75,7 @@ export async function mergeCommand(args: string[]) {
       } else if (s.codec_type === 'audio') {
         const hz = s.sample_rate ? Math.round(parseInt(s.sample_rate) / 1000) + ' kHz' : 'N/A';
         const bitrate = s.bit_rate ? Math.round(parseInt(s.bit_rate) / 1000) + ' kbps' : 'N/A';
-        const channels = s.channels === 6 ? '5.1' : s.channels === 2 ? 'Stereo' : s.channels;
+        const channels = s.channels === 6 ? '5.1' : s.channels === 2 ? t('fmtStereo') : s.channels;
         label = `[${s.codec_name}] (${lang}) ${channels} Ch | ${hz} | ${bitrate}`;
       } else if (s.codec_type === 'subtitle') {
         const subStatus = isImageSubtitle(s.codec_name) ? pc.yellow(` ⚠ ${t('checkBurnIn')}`) : pc.green(` ✔ ${t('checkSafe')}`);
@@ -85,11 +85,11 @@ export async function mergeCommand(args: string[]) {
       }
       
       const optionValue = { fileIndex, streamIndex: s.index, type: s.codec_type, codec: s.codec_name };
-      const option = { value: optionValue, label: `${label} - Arquivo ${fileLabel}` };
-      
-      if (s.codec_type === 'video') groups['🎬 Vídeo']!.push(option);
-      else if (s.codec_type === 'audio') groups['🔊 Áudio']!.push(option);
-      else groups['💬 Legendas e Outros']!.push(option);
+      const option = { value: optionValue, label: `${label}${t('fileSuffix', fileLabel)}` };
+
+      if (s.codec_type === 'video') groups[t('groupVideo')]!.push(option);
+      else if (s.codec_type === 'audio') groups[t('groupAudio')]!.push(option);
+      else groups[t('groupSubs')]!.push(option);
 
       if (currentSelected) {
         if (currentSelected.some((cs: any) => cs.fileIndex === fileIndex && cs.streamIndex === s.index)) {
@@ -171,7 +171,7 @@ export async function mergeCommand(args: string[]) {
         message: t('mergeAskDelay'),
         initialValue: currentDelayMs.toString(),
         validate(value) {
-          if (value && isNaN(parseInt(value as string))) return 'Digite um número válido';
+          if (value && isNaN(parseInt(value as string))) return t('validNumber');
         }
       });
       if (onCancel(delayStr) !== undefined) {
@@ -189,7 +189,7 @@ export async function mergeCommand(args: string[]) {
   };
 
   if (Math.abs(durA - durB) > 1) {
-    note(pc.yellow(t('mergeDurationAlert')), 'Alerta de Duração');
+    note(pc.yellow(t('mergeDurationAlert')), t('durationAlertTitle'));
     await askForSync();
   }
 

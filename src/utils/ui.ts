@@ -54,7 +54,7 @@ export async function handleExecutionMenu(options: {
       if (fileHasErrors) {
         menuOptions.push({ label: pc.yellow(t('menuRunRepairScan')), value: 'run_repair_and_scan' });
       }
-      menuOptions.push({ label: pc.yellow(t('menuRunRepairOnly') || '🩹 Run Repair (Opção Nuclear)'), value: 'run_repair' });
+      menuOptions.push({ label: pc.yellow(t('menuRunRepairOnly')), value: 'run_repair' });
     }
 
     if (options.allowStreamSelection) {

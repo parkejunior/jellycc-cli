@@ -104,12 +104,12 @@ export async function checkCommand(args: string[]) {
     const vBitrate = formatBitrate(videoStream.bit_rate);
     const vDepth = getBitDepth(videoStream);
     const vRes = `${videoStream.width || '?'}x${videoStream.height || '?'}`;
-    const vCodecOriginal = vKey ? vKey.toUpperCase() : 'DESCONHECIDO';
+    const vCodecOriginal = vKey ? vKey.toUpperCase() : t('unknown');
 
     if (isVideoCompatible) {
       modLines.push(`  ${padLabel(t('checkCodec'))} ${pc.green(vCodecOriginal + ' ✔')}\n  ${padLabel(t('checkRes'))} ${pc.dim(vRes)}\n  ${padLabel(t('checkFps'))} ${pc.dim(vFps)}\n  ${padLabel(t('checkBitDepth'))} ${pc.dim(vDepth)}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(vBitrate)}`);
     } else {
-      modLines.push(`  ${padLabel(t('checkCodec'))} ${pc.dim(vCodecOriginal)} ➔ ${pc.yellow('H.264')}\n  ${padLabel(t('checkRes'))} ${pc.dim(vRes)}\n  ${padLabel(t('checkFps'))} ${pc.dim(vFps)}\n  ${padLabel(t('checkBitDepth'))} ${vDepth === '8-bit' ? pc.dim('8-bit') : `${pc.dim(vDepth)} ➔ ${pc.yellow('8-bit')}`}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(vBitrate)} ➔ ${pc.yellow('Visually Lossless (CRF 18)')}`);
+      modLines.push(`  ${padLabel(t('checkCodec'))} ${pc.dim(vCodecOriginal)} ➔ ${pc.yellow('H.264')}\n  ${padLabel(t('checkRes'))} ${pc.dim(vRes)}\n  ${padLabel(t('checkFps'))} ${pc.dim(vFps)}\n  ${padLabel(t('checkBitDepth'))} ${vDepth === '8-bit' ? pc.dim('8-bit') : `${pc.dim(vDepth)} ➔ ${pc.yellow('8-bit')}`}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(vBitrate)} ➔ ${pc.yellow(t('visuallyLossless'))}`);
     }
     modLines.push('');
   }
@@ -121,8 +121,8 @@ export async function checkCommand(args: string[]) {
       const aBitrate = formatBitrate(aStream.bit_rate);
       const audioChannels = aStream.channels || 2;
       const aChannelsStr = formatChannels(audioChannels);
-      const aCodecOriginal = aStream.codec_name ? aStream.codec_name.toUpperCase() : 'DESCONHECIDO';
-      const trackLbl = audioStreams.length > 1 ? `Faixa ${index + 1}:` : t('checkCodec');
+      const aCodecOriginal = aStream.codec_name ? aStream.codec_name.toUpperCase() : t('unknown');
+      const trackLbl = audioStreams.length > 1 ? t('trackNum', index + 1) : t('checkCodec');
 
       if (fallbackRules.audio.acceptable.includes(aStream.codec_name)) {
         modLines.push(`  ${padLabel(trackLbl)} ${pc.green(aCodecOriginal + ' ✔')}\n  ${padLabel(t('checkChannels'))} ${pc.dim(aChannelsStr)}\n  ${padLabel(t('checkSample'))} ${pc.dim(aSampleRate)}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(aBitrate)}\n`);
@@ -146,9 +146,9 @@ export async function checkCommand(args: string[]) {
       const lang = sStream.tags?.language ? sStream.tags.language.toUpperCase() : 'UND';
       const codec = formatSubtitleCodec(sStream.codec_name);
       if (!isImageSubtitle(sStream.codec_name)) {
-        modLines.push(`  Faixa ${index + 1}: ${pc.green(codec + ' ✔')} | ${t('checkLang')} ${pc.dim(lang)} | ${t('checkStatus')} ${pc.green(t('checkSafe'))}`);
+        modLines.push(`  ${t('trackNum', index + 1)} ${pc.green(codec + ' ✔')} | ${t('checkLang')} ${pc.dim(lang)} | ${t('checkStatus')} ${pc.green(t('checkSafe'))}`);
       } else {
-        modLines.push(`  Faixa ${index + 1}: ${pc.yellow(codec + ' ⚠')} | ${t('checkLang')} ${pc.dim(lang)} | ${t('checkStatus')} ${pc.yellow(t('checkBurnIn'))}`);
+        modLines.push(`  ${t('trackNum', index + 1)} ${pc.yellow(codec + ' ⚠')} | ${t('checkLang')} ${pc.dim(lang)} | ${t('checkStatus')} ${pc.yellow(t('checkBurnIn'))}`);
       }
     });
     modLines.push('');
@@ -157,7 +157,7 @@ export async function checkCommand(args: string[]) {
   if (attachedPics.length > 0) {
     modLines.push(pc.bold(t('checkExtras')));
     attachedPics.forEach((st: any) => {
-      modLines.push(`  Faixa ${st.index}: ${pc.yellow(st.codec_name.toUpperCase() + ' ⚠')} | ${t('checkType')} ${pc.dim(t('checkCover'))} | ${t('checkStatus')} ${pc.yellow(t('checkFpsRisk'))}`);
+      modLines.push(`  ${t('trackNum', st.index)} ${pc.yellow(st.codec_name.toUpperCase() + ' ⚠')} | ${t('checkType')} ${pc.dim(t('checkCover'))} | ${t('checkStatus')} ${pc.yellow(t('checkFpsRisk'))}`);
     });
     modLines.push('');
   }
@@ -213,7 +213,7 @@ export async function checkCommand(args: string[]) {
       } else if (s.codec_type === 'audio') {
         const hz = s.sample_rate ? Math.round(parseInt(s.sample_rate) / 1000) + ' kHz' : 'N/A';
         const bitrate = s.bit_rate ? Math.round(parseInt(s.bit_rate) / 1000) + ' kbps' : 'N/A';
-        const channels = s.channels === 6 ? '5.1' : s.channels === 2 ? 'Stereo' : s.channels;
+        const channels = s.channels === 6 ? '5.1' : s.channels === 2 ? t('fmtStereo') : s.channels;
         label = `[${s.codec_name}] (${lang})${title} ${channels} Ch | ${hz} | ${bitrate}`;
       } else if (s.codec_type === 'subtitle') {
         const subStatus = isImageSubtitle(s.codec_name) ? pc.yellow(` ⚠ ${t('checkBurnIn')}`) : pc.green(` ✔ ${t('checkSafe')}`);
@@ -224,9 +224,9 @@ export async function checkCommand(args: string[]) {
 
       const valueObj = { streamIndex: s.index, type: s.codec_type, codec: s.codec_name };
 
-      if (s.codec_type === 'video') groups['🎬 Vídeo']!.push({ value: valueObj, label });
-      else if (s.codec_type === 'audio') groups['🔊 Áudio']!.push({ value: valueObj, label });
-      else groups['💬 Legendas e Outros']!.push({ value: valueObj, label });
+      if (s.codec_type === 'video') groups[t('groupVideo')]!.push({ value: valueObj, label });
+      else if (s.codec_type === 'audio') groups[t('groupAudio')]!.push({ value: valueObj, label });
+      else groups[t('groupSubs')]!.push({ value: valueObj, label });
 
       if (currentSelected.some((cs: any) => cs.streamIndex === s.index)) {
         initialValues.push(valueObj);
