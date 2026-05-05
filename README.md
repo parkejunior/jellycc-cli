@@ -46,7 +46,7 @@
 
 Run the installation script:
 ```bash
-curl -fsSL [https://raw.githubusercontent.com/parkejunior/jellycc-cli/main/install.sh](https://raw.githubusercontent.com/parkejunior/jellycc-cli/main/install.sh) | bash
+curl -fsSL https://raw.githubusercontent.com/parkejunior/jellycc-cli/main/install.sh | bash
 ```
 ## 🚀 Usage
 
