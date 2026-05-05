@@ -2,36 +2,48 @@ name: Build and Release JellyCC
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  release:
-    name: Build and Release
+  release-please:
+    name: Release Please and Build
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
     steps:
+      - name: Run Release Please
+        id: release
+        uses: googleapis/release-please-action@v5
+        with:
+          release-type: node
+
       - name: Checkout source code
-        uses: actions/checkout@v4
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions/checkout@v6
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        if: ${{ steps.release.outputs.release_created }}
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
       - name: Install dependencies
+        if: ${{ steps.release.outputs.release_created }}
         run: bun install
 
       - name: Run Prebuild (YAML to JSON)
+        if: ${{ steps.release.outputs.release_created }}
         run: bun run prebuild.ts
 
       - name: Compile Binary (Linux)
+        if: ${{ steps.release.outputs.release_created }}
         run: bun build ./src/index.ts --compile --target=bun-linux-x64 --outfile jellycc-linux-x64
 
-      - name: Create Release and Upload
-        uses: softprops/action-gh-release@v2
-        with:
-          files: jellycc-linux-x64
-          generate_release_notes: true
+      - name: Upload Release Asset
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload ${{ steps.release.outputs.tag_name }} jellycc-linux-x64
