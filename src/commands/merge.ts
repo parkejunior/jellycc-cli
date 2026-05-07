@@ -1,5 +1,5 @@
 import { t } from '../utils/i18n.ts';
-import { text, groupMultiselect, note, confirm, select } from '@clack/prompts';
+import { text, groupMultiselect, note, confirm, select, log } from '@clack/prompts';
 import pc from 'picocolors';
 import fs from 'fs';
 import path from 'path';
@@ -207,6 +207,13 @@ export async function mergeCommand(args: string[]) {
 
     let syncMsg = currentDelayMs !== 0 ? pc.dim(t('syncAdjusted', currentDelayMs)) : '';
     let cutMsg = applyShortest ? pc.yellow(t('strictCut')) : '';
+
+    // UI Contextual elegante usando o log do Clack
+    const hasSubs = selectedStreams.some((s: any) => s.type === 'subtitle');
+    if (currentDelayMs !== 0 && hasSubs) {
+      log.info(pc.cyan(t('syncWarning')));
+    }
+
     note(pc.yellow(ffmpegCmd), `${t('mergeCmdSuggested')}${syncMsg}${cutMsg}`);
 
     // Mapeamento Total: Todos os vídeos/áudios do Arquivo 0 (A) e do Arquivo 1 (B)

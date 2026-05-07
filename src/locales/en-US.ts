@@ -170,4 +170,5 @@ export default {
   tagLang: ' | Language: ',
   tagTitle: ' | Title: ',
   fmtStereo: 'Stereo',
+  syncWarning: 'Note: Sync adjustments will automatically apply to any subtitles originating from the shifted file.',
 };

@@ -170,4 +170,5 @@ export default {
   tagLang: ' | Idioma: ',
   tagTitle: ' | Título: ',
   fmtStereo: 'Estéreo',
+  syncWarning: 'Nota: O ajuste de sincronia é aplicado automaticamente às legendas que vierem do mesmo arquivo.',
 };
