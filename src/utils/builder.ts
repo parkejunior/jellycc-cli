@@ -1,3 +1,4 @@
+import path from 'path';
 import { getDynamicVideoEncoder, getDynamicAudioEncoder } from './ffmpeg.ts';
 
 export function buildCheckCommand(selectedStreams: any[], probeData: any, fallbackRules: any, isVideoCompatible: boolean, videoPath: string, outputPath: string, useRepairMode: boolean = false) {
@@ -11,13 +12,19 @@ export function buildCheckCommand(selectedStreams: any[], probeData: any, fallba
   let extraInputs: string[] = [];
   let currentExtraInputIdx = 1;
 
+  let tmpDir = '';
+  if (useRepairMode) {
+    tmpDir = path.join(path.dirname(outputPath), '.jellycc_tmp');
+    preCmds.push(`mkdir -p "${tmpDir}"`);
+    postCmds.push(`rm -rf "${tmpDir}"`);
+  }
+
   for (const stream of selectedStreams) {
     if (stream.type === 'video') {
       if (useRepairMode) {
         // Máquina de Lavar de Vídeo para o Check
-        const cleanVideoPath = `${outputPath}.temp_video_${vOutIdx}.mp4`;
+        const cleanVideoPath = path.join(tmpDir, `temp_video_${vOutIdx}.mp4`);
         preCmds.push(`ffmpeg -y -i "${videoPath}" -map 0:${stream.streamIndex} -c:v copy -threads 0 "${cleanVideoPath}"`);
-        postCmds.push(`rm -f "${cleanVideoPath}"`);
         extraInputs.push(`-i "${cleanVideoPath}"`);
 
         mapArgs.push(`-map ${currentExtraInputIdx}:0`);
@@ -47,9 +54,8 @@ export function buildCheckCommand(selectedStreams: any[], probeData: any, fallba
         const encoderStr = getDynamicAudioEncoder(fullStream, target, aOutIdx);
 
         if (useRepairMode) {
-          const wavPath = `${outputPath}.temp_audio_${aOutIdx}.w64`;
+          const wavPath = path.join(tmpDir, `temp_audio_${aOutIdx}.w64`);
           preCmds.push(`ffmpeg -y -i "${videoPath}" -map 0:${stream.streamIndex} -c:a pcm_s16le -threads 0 "${wavPath}"`);
-          postCmds.push(`rm -f "${wavPath}"`);
           extraInputs.push(`-i "${wavPath}"`);
 
           mapArgs.push(`-map ${currentExtraInputIdx}:0`);
@@ -118,6 +124,13 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
   let extraInputs: string[] = [];
   let currentExtraInputIdx = 2;
 
+  let tmpDir = '';
+  if (useRepairMode) {
+    tmpDir = path.join(path.dirname(outputPath), '.jellycc_tmp');
+    preCmds.push(`mkdir -p "${tmpDir}"`);
+    postCmds.push(`rm -rf "${tmpDir}"`);
+  }
+
   let audioOutputIndex = 0;
   let videoOutputIndex = 0;
   let subtitleOutputIndex = 0;
@@ -139,11 +152,10 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
         const encoderStr = getDynamicAudioEncoder(fullStream, target, audioOutputIndex);
 
         if (applyRepairToThisStream) {
-          const wavPath = `${outputPath}.temp_audio_${audioOutputIndex}.w64`;
+          const wavPath = path.join(tmpDir, `temp_audio_${audioOutputIndex}.w64`);
           const sourcePath = stream.fileIndex === 0 ? pathA : pathB;
 
           preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -async 1 -c:a pcm_s16le -threads 0 "${wavPath}"`);
-          postCmds.push(`rm -f "${wavPath}"`);
           
           // 1. Delay Global (caso o utilizador tenha feito um shift estrutural no menu)
           let userDelayMs = 0;
@@ -185,11 +197,10 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
     } else if (stream.type === 'video') {
       if (useRepairMode) {
         // A Máquina de Lavar de Vídeo para o Merge (Conserta o Relógio Quebrado)
-        const cleanVideoPath = `${outputPath}.temp_video_${videoOutputIndex}.mp4`;
+        const cleanVideoPath = path.join(tmpDir, `temp_video_${videoOutputIndex}.mp4`);
         const sourcePath = stream.fileIndex === 0 ? pathA : pathB;
         
         preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -c:v copy -threads 0 "${cleanVideoPath}"`);
-        postCmds.push(`rm -f "${cleanVideoPath}"`);
         
         let currentOffset = '';
         if (stream.fileIndex === 0) currentOffset = offsetA;
@@ -212,11 +223,10 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
       if (useRepairMode && (stream.codec === 'subrip' || stream.codec === 'ass')) {
         // A Máquina de Lavar de Legendas (Desvincula do MKV para o offset funcionar)
         const ext = stream.codec === 'subrip' ? 'srt' : 'ass';
-        const cleanSubPath = `${outputPath}.temp_sub_${subtitleOutputIndex}.${ext}`;
+        const cleanSubPath = path.join(tmpDir, `temp_sub_${subtitleOutputIndex}.${ext}`);
         const sourcePath = stream.fileIndex === 0 ? pathA : pathB;
         
         preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -threads 0 "${cleanSubPath}"`);
-        postCmds.push(`rm -f "${cleanSubPath}"`);
         
         let currentOffset = '';
         if (stream.fileIndex === 0) currentOffset = offsetA;
