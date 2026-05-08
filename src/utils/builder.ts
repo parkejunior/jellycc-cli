@@ -16,7 +16,7 @@ export function buildCheckCommand(selectedStreams: any[], probeData: any, fallba
       if (useRepairMode) {
         // Máquina de Lavar de Vídeo para o Check
         const cleanVideoPath = `${outputPath}.temp_video_${vOutIdx}.mp4`;
-        preCmds.push(`ffmpeg -y -i "${videoPath}" -map 0:${stream.streamIndex} -c:v copy "${cleanVideoPath}"`);
+        preCmds.push(`ffmpeg -y -i "${videoPath}" -map 0:${stream.streamIndex} -c:v copy -threads 0 "${cleanVideoPath}"`);
         postCmds.push(`rm -f "${cleanVideoPath}"`);
         extraInputs.push(`-i "${cleanVideoPath}"`);
 
@@ -48,7 +48,7 @@ export function buildCheckCommand(selectedStreams: any[], probeData: any, fallba
 
         if (useRepairMode) {
           const wavPath = `${outputPath}.temp_audio_${aOutIdx}.w64`;
-          preCmds.push(`ffmpeg -y -i "${videoPath}" -map 0:${stream.streamIndex} -c:a pcm_s16le "${wavPath}"`);
+          preCmds.push(`ffmpeg -y -i "${videoPath}" -map 0:${stream.streamIndex} -c:a pcm_s16le -threads 0 "${wavPath}"`);
           postCmds.push(`rm -f "${wavPath}"`);
           extraInputs.push(`-i "${wavPath}"`);
 
@@ -142,7 +142,7 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
           const wavPath = `${outputPath}.temp_audio_${audioOutputIndex}.w64`;
           const sourcePath = stream.fileIndex === 0 ? pathA : pathB;
 
-          preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -async 1 -c:a pcm_s16le "${wavPath}"`);
+          preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -async 1 -c:a pcm_s16le -threads 0 "${wavPath}"`);
           postCmds.push(`rm -f "${wavPath}"`);
           
           // 1. Delay Global (caso o utilizador tenha feito um shift estrutural no menu)
@@ -188,7 +188,7 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
         const cleanVideoPath = `${outputPath}.temp_video_${videoOutputIndex}.mp4`;
         const sourcePath = stream.fileIndex === 0 ? pathA : pathB;
         
-        preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -c:v copy "${cleanVideoPath}"`);
+        preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -c:v copy -threads 0 "${cleanVideoPath}"`);
         postCmds.push(`rm -f "${cleanVideoPath}"`);
         
         let currentOffset = '';
@@ -215,7 +215,7 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
         const cleanSubPath = `${outputPath}.temp_sub_${subtitleOutputIndex}.${ext}`;
         const sourcePath = stream.fileIndex === 0 ? pathA : pathB;
         
-        preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} "${cleanSubPath}"`);
+        preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -threads 0 "${cleanSubPath}"`);
         postCmds.push(`rm -f "${cleanSubPath}"`);
         
         let currentOffset = '';
