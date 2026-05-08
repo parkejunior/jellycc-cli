@@ -245,11 +245,18 @@ export async function checkCommand(args: string[]) {
     const selectedAudios = selectedStreams.filter((s: any) => s.type === 'audio');
     const isAudioCompatible = selectedAudios.length === 0 || selectedAudios.every((s: any) => fallbackRules.audio.acceptable.includes(s.codec));
 
+    const tagsModified = selectedStreams.some((s: any) => {
+      const origStream = probeData.streams.find((st: any) => st.index === s.streamIndex);
+      const origLang = origStream?.tags?.language || 'und';
+      const origTitle = origStream?.tags?.title || '';
+      return s.language !== origLang || s.title !== origTitle;
+    });
+
     const needsTranscode = !isContainerCompatible || !isVideoCompatible || !isAudioCompatible;
     const streamsDropped = selectedStreams.length < probeData.streams.length;
 
-    const needsAction = needsTranscode || streamsDropped;
-    const isJustRemux = !needsTranscode && streamsDropped;
+    const needsAction = needsTranscode || streamsDropped || tagsModified;
+    const isJustRemux = !needsTranscode && (streamsDropped || tagsModified);
 
     const dir = path.dirname(videoPath as string);
     const name = path.basename(videoPath as string, path.extname(videoPath as string));
