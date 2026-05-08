@@ -148,21 +148,24 @@ export async function mergeCommand(args: string[]) {
 
   const askForSync = async () => {
     const exactDiffMs = Math.round((durA - durB) * 1000);
-    let chosenSyncAction = 'manual';
+    const options = [];
 
-    if (exactDiffMs !== 0) {
-      const absDiff = Math.abs(exactDiffMs);
-      const actionWord = exactDiffMs > 0 ? t('delayBehind', absDiff) : t('delayAhead', absDiff);
-      
-      chosenSyncAction = onCancel(await select({
-        message: t('mergeHowToSync'),
-        options: [
-          { label: t('mergeAutoSync', actionWord), value: 'auto' },
-          { label: t('mergeManualSync'), value: 'manual' },
-          { label: t('mergeNoSync'), value: 'none' }
-        ]
-      })) as string;
+    // O "Auto-alinhar" só aparece se houver diferença de duração física
+    if (Math.abs(exactDiffMs) > 1000) {
+      options.push({ 
+        label: t('mergeAutoSync', exactDiffMs > 0 ? t('delayBehind', Math.abs(exactDiffMs)) : t('delayAhead', Math.abs(exactDiffMs))), 
+        value: 'auto' 
+      });
     }
+
+    // As opções manuais aparecem SEMPRE
+    options.push({ label: t('mergeManualSync'), value: 'manual' });
+    options.push({ label: t('mergeNoSync'), value: 'none' });
+
+    const chosenSyncAction = onCancel(await select({
+      message: t('mergeHowToSync'),
+      options: options
+    })) as string;
 
     if (chosenSyncAction === 'auto') {
       currentDelayMs = exactDiffMs;

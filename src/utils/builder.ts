@@ -141,14 +141,30 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
         if (applyRepairToThisStream) {
           const wavPath = `${outputPath}.temp_audio_${audioOutputIndex}.w64`;
           const sourcePath = stream.fileIndex === 0 ? pathA : pathB;
-          
-          preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -c:a pcm_s16le "${wavPath}"`);
+
+          preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -async 1 -c:a pcm_s16le "${wavPath}"`);
           postCmds.push(`rm -f "${wavPath}"`);
           
-          let currentOffset = '';
-          if (stream.fileIndex === 0) currentOffset = offsetA;
-          if (stream.fileIndex === 1) currentOffset = offsetB;
-          extraInputs.push(`${currentOffset}-i "${wavPath}"`);
+          // 1. Delay Global (caso o utilizador tenha feito um shift estrutural no menu)
+          let userDelayMs = 0;
+          if (stream.fileIndex === 0 && delayMs < 0) userDelayMs = Math.abs(delayMs);
+          if (stream.fileIndex === 1 && delayMs > 0) userDelayMs = delayMs;
+
+          // 2. O VERDADEIRO SMART: Lê o atraso nativo (PTS) que se perdeu no .w64
+          let ptsDelayMs = 0;
+          if (fullStream && fullStream.start_time) {
+            ptsDelayMs = Math.round(parseFloat(fullStream.start_time) * 1000);
+          }
+
+          // 3. Soma os dois e aplica o offset APENAS para esta faixa de áudio
+          const totalWavDelayMs = userDelayMs + ptsDelayMs;
+          
+          let wavOffsetStr = '';
+          if (totalWavDelayMs > 0) {
+            wavOffsetStr = `-itsoffset ${totalWavDelayMs / 1000} `;
+          }
+
+          extraInputs.push(`${wavOffsetStr}-i "${wavPath}"`);
 
           mapArgs.push(`-map ${currentExtraInputIdx}:0`);
           currentExtraInputIdx++;
