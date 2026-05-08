@@ -2,6 +2,7 @@ import { isCancel, cancel, select, outro, text, confirm } from '@clack/prompts';
 import pc from 'picocolors';
 import { runConversion, runDeepScan } from './ffmpeg.ts';
 import { t } from './i18n.ts';
+import path from 'path';
 
 export function onCancel(value: any) {
   if (isCancel(value)) {
@@ -103,10 +104,16 @@ export async function handleExecutionMenu(options: {
       const isRepair = action === 'run_repair' || action === 'run_repair_and_scan';
       const cmdToRun = isRepair ? options.ffmpegRepairCmd! : options.ffmpegCmd;
       
+      let actualOutputPath = options.outputPath;
+      if (isRepair) {
+        const parsed = path.parse(options.outputPath);
+        actualOutputPath = path.join(parsed.dir, `${parsed.name}_repaired${parsed.ext}`);
+      }
+      
       await runConversion(cmdToRun, options.totalDuration, options.totalFrames);
       
       if (action === 'run_and_scan' || action === 'run_repair_and_scan') {
-        await runDeepScan([options.outputPath], ['0'], options.totalDuration);
+        await runDeepScan([actualOutputPath], ['0'], options.totalDuration);
       }
 
       const successMsg = options.isMerge ? t('successMerge') : t('successOp');
