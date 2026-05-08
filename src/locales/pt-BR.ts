@@ -62,7 +62,7 @@ export default {
   checkGarbageDetected: '⚠ Lixos embutidos detectados (Capas ou Legendas PGS). Deseja removê-los automaticamente da versão final?',
   checkSelectKeep: 'Selecione as faixas que deseja manter no arquivo final:',
   checkPerfect: '✔ O arquivo atende perfeitamente às regras e contém todas as faixas originais. Nenhuma ação extra é necessária.',
-  checkRemuxOnly: 'ℹ O arquivo requer apenas uma limpeza (Remux). Você descartou {0} faixa(s).',
+  checkRemuxOnly: 'O arquivo requer apenas uma limpeza (Remux). Você descartou {0} faixa(s).',
   checkRemuxCmd: 'Comando de Limpeza Sugerido',
   checkTranscodeCmd: 'Comando FFmpeg Sugerido (Transcode + Limpeza)',
 

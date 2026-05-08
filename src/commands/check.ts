@@ -1,5 +1,5 @@
 import { t } from '../utils/i18n.ts';
-import { text, cancel, note, confirm, groupMultiselect } from '@clack/prompts';
+import { text, cancel, note, confirm, groupMultiselect, log } from '@clack/prompts';
 import pc from 'picocolors';
 import fs from 'fs';
 import path from 'path';
@@ -277,7 +277,8 @@ export async function checkCommand(args: string[]) {
       note(pc.green(t('checkPerfect')), t('readyToUse'));
     } else if (isJustRemux) {
       const droppedCount = probeData.streams.length - selectedStreams.length;
-      note(pc.cyan(`${t('checkRemuxOnly', droppedCount)}\n\n${pc.yellow(ffmpegCmd)}`), t('checkRemuxCmd'));
+      log.info(pc.cyan(t('checkRemuxOnly', droppedCount)));
+      note(pc.yellow(ffmpegCmd), t('checkRemuxCmd'));
     } else {
       note(pc.yellow(ffmpegCmd), t('checkTranscodeCmd'));
     }

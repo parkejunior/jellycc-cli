@@ -62,7 +62,7 @@ export default {
   checkGarbageDetected: '⚠ Embedded garbage detected (Covers or PGS Subtitles). Do you want to automatically remove them from the final version?',
   checkSelectKeep: 'Select the streams you want to keep in the final file:',
   checkPerfect: '✔ The file perfectly meets the rules and contains all original streams. No extra action is required.',
-  checkRemuxOnly: 'ℹ The file only requires cleanup (Remux). You discarded {0} stream(s).',
+  checkRemuxOnly: 'The file only requires cleanup (Remux). You discarded {0} stream(s).',
   checkRemuxCmd: 'Suggested Cleanup Command',
   checkTranscodeCmd: 'Suggested FFmpeg Command (Transcode + Cleanup)',
 
