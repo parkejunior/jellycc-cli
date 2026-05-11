@@ -9,8 +9,8 @@ import { runQuickScan, getMediaInfo } from '../utils/ffprobe.ts';
 import { buildCheckCommand } from '../utils/builder.ts';
 import { formatFps, formatBitrate, getBitDepth, formatSampleRate, formatChannels, padLabel, isImageSubtitle, formatSubtitleCodec, isAttachedPic, calculateTotalFrames } from '../utils/formatters.ts';
 
-import supportMatrix from '../../dist/matrix.json' with { type: 'json' };
-import fallbackRules from '../../dist/rules.json' with { type: 'json' };
+import supportMatrix from '../config/jellyfin_codec_support.yaml';
+import fallbackRules from '../config/fallback_rules.yaml';
 
 export async function checkCommand(args: string[]) {
   const deepScanFlag = args.includes('--deep-scan');

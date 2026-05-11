@@ -9,7 +9,7 @@ import { getMediaInfo } from '../utils/ffprobe.ts';
 import { buildMergeCommand } from '../utils/builder.ts';
 import { formatFps, formatDuration, formatSize, padLabel, isImageSubtitle, formatSubtitleCodec, calculateTotalFrames } from '../utils/formatters.ts';
 
-import fallbackRules from '../../dist/rules.json' with { type: 'json' };
+import fallbackRules from '../config/fallback_rules.yaml';
 
 export async function mergeCommand(args: string[]) {
   let pathA = onCancel(await text({
