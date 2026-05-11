@@ -76,11 +76,11 @@ To merge multiple files into a single MKV, run the command:
 jellycc merge
 ```
 
-### Language
+### Configuration
 
-If you want to change the interface language, run the command:
+If you want to change the interface language or create a `rules.json` config file, run the command:
 ```bash
-jellycc lang
+jellycc config
 ```
 
 > [!TIP]
@@ -104,12 +104,7 @@ After analyzing a file, an interactive menu is displayed with the following opti
 
 ## ⚙️ Configuration
 
-JellyCC uses two main configuration files:
-
-- **`jellyfin-codec-support.yaml`** — Compatibility matrix per client (Chrome, Firefox, Android TV, etc.) based on the official Jellyfin [documentation](https://jellyfin.org/docs/general/clients/codec-support/).
-- **`fallback_rules.yaml`** — Conversion rules (container, video and audio codec).
-
-You can edit these files according to your needs. Language preferences are automatically saved in `~/.jellycc.json`.
+You can see the full list of configuration options in the [configuration documentation](docs/CONFIGURATION.md).
 
 ## ⚖️ License
 
