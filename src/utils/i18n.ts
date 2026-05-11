@@ -6,7 +6,7 @@ import os from 'os';
 import ptBR from '../locales/pt-BR.ts';
 import enUS from '../locales/en-US.ts';
 
-const CONFIG_PATH = path.join(os.homedir(), '.jellycc.json');
+const CONFIG_PATH = path.join(os.homedir(), '.config', 'jellycc', 'config.json');
 
 const dictionaries: Record<string, Record<string, string>> = {
   'pt-BR': ptBR,

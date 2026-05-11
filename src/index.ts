@@ -6,7 +6,7 @@ import pkg from '../package.json';
 
 import { checkCommand } from './commands/check.ts';
 import { mergeCommand } from './commands/merge.ts';
-import { langCommand } from './commands/lang.ts';
+import { configCommand } from './commands/config.ts';
 
 updateSettings({
   messages: {
@@ -20,12 +20,12 @@ async function main() {
 
   let currentCmd = 'check';
   if (command === 'merge' || command === 'm') currentCmd = 'merge';
-  else if (command === 'lang') currentCmd = 'lang';
+  else if (command === 'config' || command === 'lang') currentCmd = 'config'; 
 
   const titleMap: Record<string, string> = {
     'check': t('titleCheck'),
     'merge': t('titleMerge'),
-    'lang': t('titleLang')
+    'config': t('titleConfig')
   };
 
   intro(`                           
@@ -44,8 +44,8 @@ async function main() {
     await checkCommand(command === 'check' || command === 'c' ? args.slice(1) : args);
   } else if (currentCmd === 'merge') {
     await mergeCommand(args.slice(1));
-  } else if (currentCmd === 'lang') {
-    await langCommand();
+  } else if (currentCmd === 'config') {
+    await configCommand(args.slice(1)); 
   }
 }
 

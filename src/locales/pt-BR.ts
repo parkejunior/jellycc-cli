@@ -107,14 +107,21 @@ export default {
   convStartFail: '✖ Falha ao tentar iniciar o processo do FFmpeg: {0}',
 
   // Comando: Lang
-  langSelect: '🌐 Selecione o idioma de sua preferência:',
+  langSelect: '🌐 Selecione o idioma de sua preferência / Select your preferred language:',
   langChanged: '✔ Idioma alterado com sucesso!',
   langError: '✖ Erro ao salvar a configuração de idioma.',
+
+  // Comando: Config
+  configMenuLang: '🌐 Alterar Idioma / Change Language',
+  configMenuInit: '⚙️  Gerar template de regras (rules.example.json)',
+  configTemplateGenerated: '✔ Template gerado em:\n  {0}\n\n💡 Renomeie para "rules.json" para usá-lo.',
+  langChangedTo: '✔ Idioma alterado para:',
 
   // Títulos dos Comandos
   titleCheck: 'Análise e Limpeza de Mídia',
   titleMerge: 'Mesclagem de Mídia',
   titleLang: 'Configuração de Idioma',
+  titleConfig: 'Configurações do JellyCC',
 
   // Tags (Edição de Idiomas)
   tagEditUndDetected: '⚠️ Foi detectada uma ou mais faixas com idioma desconhecido (UND). Deseja editar as tags agora?',
