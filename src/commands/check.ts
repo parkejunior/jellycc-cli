@@ -7,8 +7,10 @@ import path from 'path';
 import { onCancel, sanitizePath, handleExecutionMenu, editTagsMenu } from '../utils/ui.ts';
 import { runQuickScan, getMediaInfo } from '../utils/ffprobe.ts';
 import { buildCheckCommand } from '../utils/builder.ts';
-import { formatFps, formatBitrate, getBitDepth, formatSampleRate, formatChannels, padLabel, isImageSubtitle, formatSubtitleCodec, isAttachedPic, calculateTotalFrames } from '../utils/formatters.ts';
-import type { FFprobeData, MediaStream, SelectedStream, GroupedStreamOptions } from '../types/media';
+import { getDiagnostic, isGarbageStream } from '../services/analyzer.ts';
+import { renderMatrix, renderActionPlan } from '../views/checkView.ts';
+import { buildStreamOptions } from '../views/streamOptions.ts';
+import type { SelectedStream } from '../types/media';
 import type { FallbackRules, JellyfinSupportMatrix } from '../types/config';
 
 import supportMatrixData from '../config/jellyfin_codec_support.yaml';
@@ -17,15 +19,13 @@ import fallbackRulesData from '../config/fallback_rules.yaml';
 const supportMatrix = supportMatrixData as JellyfinSupportMatrix;
 const fallbackRules = fallbackRulesData as FallbackRules;
 
-type MatrixValue = boolean | string;
-
 export async function checkCommand(args: string[]) {
   const deepScanFlag = args.includes('--deep-scan');
-  let rawPathArg = args.find(a => a !== '--deep-scan');
+  const rawPathArg = args.find((arg) => arg !== '--deep-scan');
   let videoPath = sanitizePath(rawPathArg);
 
   if (!videoPath) {
-    let rawPath = onCancel(await text({
+    const rawPath = onCancel(await text({
       message: t('checkAskVideo'),
       placeholder: './spider-man.mkv',
       validate(value) {
@@ -42,144 +42,14 @@ export async function checkCommand(args: string[]) {
 
   runQuickScan(videoPath as string);
 
-  const clients = Object.keys(supportMatrix.clients);
-  const probeData: FFprobeData = getMediaInfo(videoPath as string);
-  const totalDuration = probeData.format && probeData.format.duration ? parseFloat(probeData.format.duration) : 0;
-  
-  const videoStream = probeData.streams.find((st) => st.codec_type === 'video' && !isAttachedPic(st));
-  const audioStreams = probeData.streams.filter((st) => st.codec_type === 'audio');
-  const attachedPics = probeData.streams.filter((st) => st.codec_type === 'video' && isAttachedPic(st));
-  const subStreams = probeData.streams.filter((st) => st.codec_type === 'subtitle');
-  
-  const totalFrames = calculateTotalFrames(videoStream, totalDuration);
-  const ext = path.extname(videoPath as string).toLowerCase().replace('.', '');
+  const probeData = getMediaInfo(videoPath as string);
+  const initialDiagnostic = getDiagnostic(probeData, fallbackRules, supportMatrix, undefined, videoPath as string);
 
-  const mapContainer = (fmt: string) => {
-    if (fmt.includes('matroska')) return 'mkv';
-    if (fmt.includes('mp4') || fmt.includes('mov')) return 'mp4';
-    if (fmt.includes('webm')) return 'webm';
-    return ext; 
-  };
+  note(renderMatrix(initialDiagnostic), t('checkMatrixResults'));
+  note(renderActionPlan(initialDiagnostic), t('checkActionPlan'));
 
-  const mapVideoCodec = (stream: MediaStream | undefined): string | null => {
-    if (!stream) return null;
-    let codec = stream.codec_name;
-    const is10bit = Boolean(stream.pix_fmt && stream.pix_fmt.includes('10'));
-    if (codec === 'h264') return is10bit ? 'h264_10bit' : 'h264_8bit';
-    if (codec === 'hevc') return is10bit ? 'hevc_10bit' : 'hevc_8bit';
-    return codec;
-  };
-
-  const cKey = mapContainer(probeData.format.format_name);
-  const vKey = mapVideoCodec(videoStream);
-  const aKey = audioStreams[0]?.codec_name ?? null;
-
-  const formatResult = (status: MatrixValue | undefined, key: string | null) => {
-    if (!key) return pc.dim(t('checkUnknown'));
-    if (status === true) return pc.green(t('checkDirectPlay'));
-    if (status === false) return pc.red(t('checkTranscode'));
-    if (typeof status === 'string') return `${pc.yellow(t('checkConditional'))} ${t(status)}`;
-    return pc.gray(`${t('checkUnknown')} (${key})`);
-  };
-
-  let resultText = `\n${pc.bold(t('checkFile'))} ${path.basename(videoPath as string)}\n${pc.bold(t('checkContainer'))} ${cKey}  |  ${pc.bold(t('checkVideo'))} ${vKey}  |  ${pc.bold(t('checkAudio'))} ${audioStreams.length} ${t('checkTrack')}\n\n${pc.bold(pc.cyan(t('checkMatrixTitle')))}\n`;
-
-  for (const client of clients) {
-    const matrix = supportMatrix.clients[client];
-    if (!matrix) continue;
-    const cStatus = matrix.containers[cKey];
-    const vStatus = vKey ? matrix.video[vKey] : undefined;
-    const aStatus = aKey ? matrix.audio[aKey] : undefined;
-
-    let badge = (cStatus === true && vStatus === true && aStatus === true) ? pc.green(t('badgeGreen')) : 
-                (cStatus === false || vStatus === false || aStatus === false) ? pc.red(t('badgeTranscode')) : pc.yellow(t('badgeWarning'));
-
-    resultText += `\n${pc.bold(client.toUpperCase())} ${badge}\n  Container: ${formatResult(cStatus, cKey)}\n  Vídeo:     ${formatResult(vStatus, vKey)}\n  Áudio:     ${formatResult(aStatus, aKey)}\n`;
-  }
-  note(resultText.trim(), t('checkMatrixResults'));
-
-  const isContainerCompatible = cKey === fallbackRules.container;
-  const isVideoCompatible = vKey === fallbackRules.video.target;
-  
-  const modLines: string[] = [];
-  modLines.push(pc.bold(t('checkContainer').replace(':', '').toUpperCase()));
-  modLines.push(cKey !== fallbackRules.container ? `  ${padLabel(t('checkFormat'))} ${pc.dim(cKey.toUpperCase())} ➔ ${pc.yellow(fallbackRules.container.toUpperCase())}` : `  ${padLabel(t('checkFormat'))} ${pc.green(cKey.toUpperCase() + ' ✔')}`);
-  modLines.push('');
-
-  if (videoStream) {
-    modLines.push(pc.bold(t('checkVideo').replace(':', '').toUpperCase()));
-    const vFps = formatFps(videoStream.r_frame_rate || videoStream.avg_frame_rate);
-    const vBitrate = formatBitrate(videoStream.bit_rate);
-    const vDepth = getBitDepth(videoStream);
-    const vRes = `${videoStream.width || '?'}x${videoStream.height || '?'}`;
-    const vCodecOriginal = vKey ? vKey.toUpperCase() : t('unknown');
-
-    if (isVideoCompatible) {
-      modLines.push(`  ${padLabel(t('checkCodec'))} ${pc.green(vCodecOriginal + ' ✔')}\n  ${padLabel(t('checkRes'))} ${pc.dim(vRes)}\n  ${padLabel(t('checkFps'))} ${pc.dim(vFps)}\n  ${padLabel(t('checkBitDepth'))} ${pc.dim(vDepth)}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(vBitrate)}`);
-    } else {
-        const targetDepth = fallbackRules.video.target.includes('10bit') ? '10-bit' : '8-bit';
-        const [targetNameBase] = fallbackRules.video.target.split('_');
-        const targetName = (targetNameBase ?? fallbackRules.video.target).toUpperCase();
-
-        modLines.push(`  ${padLabel(t('checkCodec'))} ${pc.dim(vCodecOriginal)} ➔ ${pc.yellow(targetName)}\n  ${padLabel(t('checkRes'))} ${pc.dim(vRes)}\n  ${padLabel(t('checkFps'))} ${pc.dim(vFps)}\n  ${padLabel(t('checkBitDepth'))} ${vDepth === targetDepth ? pc.dim(targetDepth) : `${pc.dim(vDepth)} ➔ ${pc.yellow(targetDepth)}`}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(vBitrate)} ➔ ${pc.yellow(t('visuallyLossless'))}`);
-    }
-    modLines.push('');
-  }
-
-  if (audioStreams.length > 0) {
-    modLines.push(pc.bold(t('checkAudio').replace(':', '').toUpperCase()));
-    audioStreams.forEach((aStream, index: number) => {
-      const aSampleRate = formatSampleRate(aStream.sample_rate);
-      const aBitrate = formatBitrate(aStream.bit_rate);
-      const audioChannels = aStream.channels || 2;
-      const aChannelsStr = formatChannels(audioChannels);
-      const aCodecOriginal = aStream.codec_name ? aStream.codec_name.toUpperCase() : t('unknown');
-      const trackLbl = audioStreams.length > 1 ? t('trackNum', index + 1) : t('checkCodec');
-
-      if (fallbackRules.audio.acceptable.includes(aStream.codec_name)) {
-        modLines.push(`  ${padLabel(trackLbl)} ${pc.green(aCodecOriginal + ' ✔')}\n  ${padLabel(t('checkChannels'))} ${pc.dim(aChannelsStr)}\n  ${padLabel(t('checkSample'))} ${pc.dim(aSampleRate)}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(aBitrate)}\n`);
-      } else {
-        const map = fallbackRules.audio.mappings[aStream.codec_name] ?? fallbackRules.audio.mappings.default;
-        let targetBitrateStr = 'Lossless';
-        if (map.target !== 'flac') {
-          const sourceKbps = aStream.bit_rate ? Math.round(Number.parseInt(aStream.bit_rate, 10) / 1000) : Infinity;
-          let finalKbps = Math.min(audioChannels * 112, sourceKbps);
-          if (map.target === 'eac3') finalKbps = Math.min(finalKbps, 768);
-          targetBitrateStr = `${finalKbps} kbps`;
-        }
-        modLines.push(`  ${padLabel(trackLbl)} ${pc.dim(aCodecOriginal)} ➔ ${pc.yellow(map.target.toUpperCase())}\n  ${padLabel(t('checkChannels'))} ${pc.dim(aChannelsStr)}\n  ${padLabel(t('checkSample'))} ${pc.dim(aSampleRate)}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(aBitrate)} ➔ ${pc.yellow(targetBitrateStr)}\n`);
-      }
-    });
-  }
-
-  if (subStreams.length > 0) {
-    modLines.push(pc.bold(t('checkSubs')));
-    subStreams.forEach((sStream, index: number) => {
-      const lang = sStream.tags?.language ? sStream.tags.language.toUpperCase() : 'UND';
-      const codec = formatSubtitleCodec(sStream.codec_name);
-      if (!isImageSubtitle(sStream.codec_name)) {
-        modLines.push(`  ${t('trackNum', index + 1)} ${pc.green(codec + ' ✔')} | ${t('checkLang')} ${pc.dim(lang)} | ${t('checkStatus')} ${pc.green(t('checkSafe'))}`);
-      } else {
-        modLines.push(`  ${t('trackNum', index + 1)} ${pc.yellow(codec + ' ⚠')} | ${t('checkLang')} ${pc.dim(lang)} | ${t('checkStatus')} ${pc.yellow(t('checkBurnIn'))}`);
-      }
-    });
-    modLines.push('');
-  }
-
-  if (attachedPics.length > 0) {
-    modLines.push(pc.bold(t('checkExtras')));
-    attachedPics.forEach((st) => {
-      modLines.push(`  ${t('trackNum', st.index)} ${pc.yellow(st.codec_name.toUpperCase() + ' ⚠')} | ${t('checkType')} ${pc.dim(t('checkCover'))} | ${t('checkStatus')} ${pc.yellow(t('checkFpsRisk'))}`);
-    });
-    modLines.push('');
-  }
-
-  note(modLines.join('\n').trimEnd(), t('checkActionPlan'));
-
-  const hasGarbage = attachedPics.length > 0 || subStreams.some((st) => isImageSubtitle(st.codec_name));
   let autoClean = false;
-  
-  if (hasGarbage) {
+  if (initialDiagnostic.hasGarbage) {
     autoClean = await confirm({
       message: pc.yellow(t('checkGarbageDetected')),
       initialValue: true
@@ -187,111 +57,63 @@ export async function checkCommand(args: string[]) {
     if (onCancel(autoClean) === false) autoClean = false;
   }
 
-  let selectedStreams: SelectedStream[] = probeData.streams.map((s) => ({
-    streamIndex: s.index,
-    type: s.codec_type,
-    codec: s.codec_name
+  let selectedStreams: SelectedStream[] = probeData.streams.map((stream) => ({
+    streamIndex: stream.index,
+    type: stream.codec_type,
+    codec: stream.codec_name
   }));
 
   selectedStreams = await editTagsMenu(selectedStreams, probeData, undefined, true);
 
   if (autoClean) {
-    selectedStreams = selectedStreams.filter((s) => {
-      const fullStream = probeData.streams.find((st) => st.index === s.streamIndex);
-      if (s.type === 'video' && fullStream?.disposition?.attached_pic === 1) return false;
-      if (s.type === 'video' && ['mjpeg', 'png', 'bmp'].includes(s.codec)) return false;
-      if (s.type === 'subtitle' && isImageSubtitle(s.codec)) return false;
-      return true;
+    selectedStreams = selectedStreams.filter((stream) => {
+      const fullStream = probeData.streams.find((probeStream) => probeStream.index === stream.streamIndex);
+      if (!fullStream) return true;
+      return !isGarbageStream(fullStream);
     });
   }
 
-  const buildGroupedOptions = (info: FFprobeData, currentSelected: SelectedStream[]) => {
-    const groupVideo = t('groupVideo');
-    const groupAudio = t('groupAudio');
-    const groupSubs = t('groupSubs');
-    const groups: GroupedStreamOptions = { [groupVideo]: [], [groupAudio]: [], [groupSubs]: [] };
-    const initialValues: SelectedStream[] = [];
-
-    info.streams.forEach((s) => {
-      let label = '';
-      const lang = s.tags && s.tags.language ? s.tags.language.toUpperCase() : 'UND';
-      const title = s.tags && s.tags.title ? ` - "${s.tags.title}"` : '';
-
-      if (s.codec_type === 'video') {
-        if (isAttachedPic(s)) {
-          label = `[${s.codec_name}] ${t('checkCover')}`;
-        } else {
-          const fps = formatFps(s.r_frame_rate || s.avg_frame_rate).replace(' fps', '');
-          const bitrate = s.bit_rate ? Math.round(parseInt(s.bit_rate) / 1000) + ' kbps' : 'N/A';
-          label = `[${s.codec_name}] ${s.width}x${s.height} @ ${fps}fps - ${bitrate}`;
-        }
-      } else if (s.codec_type === 'audio') {
-        const hz = s.sample_rate ? Math.round(parseInt(s.sample_rate) / 1000) + ' kHz' : 'N/A';
-        const bitrate = s.bit_rate ? Math.round(parseInt(s.bit_rate) / 1000) + ' kbps' : 'N/A';
-        const channels = s.channels === 6 ? '5.1' : s.channels === 2 ? t('fmtStereo') : s.channels;
-        label = `[${s.codec_name}] (${lang})${title} ${channels} Ch | ${hz} | ${bitrate}`;
-      } else if (s.codec_type === 'subtitle') {
-        const subStatus = isImageSubtitle(s.codec_name) ? pc.yellow(` ⚠ ${t('checkBurnIn')}`) : pc.green(` ✔ ${t('checkSafe')}`);
-        label = `[${formatSubtitleCodec(s.codec_name)}] (${lang})${title}${subStatus}`;
-      } else {
-        label = `[${s.codec_type}] ${s.codec_name}`;
-      }
-
-      const valueObj: SelectedStream = { streamIndex: s.index, type: s.codec_type, codec: s.codec_name };
-
-      if (s.codec_type === 'video') groups[groupVideo]!.push({ value: valueObj, label });
-      else if (s.codec_type === 'audio') groups[groupAudio]!.push({ value: valueObj, label });
-      else groups[groupSubs]!.push({ value: valueObj, label });
-
-      if (currentSelected.some((cs) => cs.streamIndex === s.index)) {
-        initialValues.push(valueObj);
-      }
-    });
-
-    Object.keys(groups).forEach(k => { if (groups[k]!.length === 0) delete groups[k]; });
-    return { groups, initialValues };
-  };
+  const dir = path.dirname(videoPath as string);
+  const name = path.basename(videoPath as string, path.extname(videoPath as string));
+  const outputPath = path.join(dir, `${name}.jellycc.${fallbackRules.container}`);
 
   let menuLoop = true;
   let dsCompleted = deepScanFlag;
   let hasMediaErrors = false;
 
   while (menuLoop) {
-    const selectedAudios = selectedStreams.filter((s) => s.type === 'audio');
-    const isAudioCompatible = selectedAudios.length === 0 || selectedAudios.every((s) => fallbackRules.audio.acceptable.includes(s.codec));
+    const currentDiagnostic = getDiagnostic(probeData, fallbackRules, supportMatrix, selectedStreams, videoPath as string);
+    const ffmpegCmd = buildCheckCommand(
+      selectedStreams,
+      probeData,
+      fallbackRules,
+      currentDiagnostic.selection.isVideoCompatible,
+      videoPath as string,
+      outputPath,
+      false
+    );
+    const ffmpegRepairCmd = buildCheckCommand(
+      selectedStreams,
+      probeData,
+      fallbackRules,
+      currentDiagnostic.selection.isVideoCompatible,
+      videoPath as string,
+      outputPath,
+      true
+    );
 
-    const tagsModified = selectedStreams.some((s) => {
-      const origStream = probeData.streams.find((st) => st.index === s.streamIndex);
-      const origLang = origStream?.tags?.language || 'und';
-      const origTitle = origStream?.tags?.title || '';
-      return s.language !== origLang || s.title !== origTitle;
-    });
+    const totalDuration = currentDiagnostic.metadata.durationSec;
+    const totalFrames = currentDiagnostic.metadata.totalFrames;
 
-    const needsTranscode = !isContainerCompatible || !isVideoCompatible || !isAudioCompatible;
-    const streamsDropped = selectedStreams.length < probeData.streams.length;
-
-    const needsAction = needsTranscode || streamsDropped || tagsModified;
-    const isJustRemux = !needsTranscode && (streamsDropped || tagsModified);
-
-    const dir = path.dirname(videoPath as string);
-    const name = path.basename(videoPath as string, path.extname(videoPath as string));
-    const outputPath = path.join(dir, `${name}.jellycc.${fallbackRules.container}`);
-
-    const ffmpegCmd = buildCheckCommand(selectedStreams, probeData, fallbackRules, isVideoCompatible, videoPath as string, outputPath, false);
-    const ffmpegRepairCmd = buildCheckCommand(selectedStreams, probeData, fallbackRules, isVideoCompatible, videoPath as string, outputPath, true);
-
-    // Mapeamento Total (Todas as faixas do arquivo 0)
     const fullScanInputs = [videoPath as string];
     const fullScanMaps = ['0'];
-
-    // Mapeamento Parcial (Só o que você escolheu)
     const selectedScanInputs = [videoPath as string];
-    const selectedScanMaps = selectedStreams.map((s) => `0:${s.streamIndex}`);
+    const selectedScanMaps = selectedStreams.map((stream) => `0:${stream.streamIndex}`);
 
-    if (!needsAction) {
+    if (!currentDiagnostic.selection.needsAction) {
       note(pc.green(t('checkPerfect')), t('readyToUse'));
-    } else if (isJustRemux) {
-      const droppedCount = probeData.streams.length - selectedStreams.length;
+    } else if (currentDiagnostic.selection.isJustRemux) {
+      const droppedCount = currentDiagnostic.selection.originalCount - currentDiagnostic.selection.selectedCount;
       log.info(pc.cyan(t('checkRemuxOnly', droppedCount)));
       note(pc.yellow(ffmpegCmd), t('checkRemuxCmd'));
     } else {
@@ -308,8 +130,8 @@ export async function checkCommand(args: string[]) {
       outputPath,
       totalDuration,
       totalFrames,
-      isPerfect: !needsAction,
-      isJustRemux,
+      isPerfect: !currentDiagnostic.selection.needsAction,
+      isJustRemux: currentDiagnostic.selection.isJustRemux,
       deepScanCompleted: dsCompleted,
       hasErrors: hasMediaErrors,
       isMerge: false,
@@ -321,18 +143,25 @@ export async function checkCommand(args: string[]) {
     hasMediaErrors = result.hasErrors;
 
     if (result.action === 'select_streams') {
-      const { groups, initialValues } = buildGroupedOptions(probeData, selectedStreams);
+      const { groups, initialValues } = buildStreamOptions({
+        sources: [{ info: probeData }],
+        currentSelected: selectedStreams,
+        includeAttachedPictures: true,
+        includeAudioTitle: true
+      });
+
       selectedStreams = onCancel(await groupMultiselect<SelectedStream>({
         message: t('checkSelectKeep'),
         options: groups,
         required: true,
-        initialValues: initialValues,
+        initialValues
       }));
-      
+
       selectedStreams = await editTagsMenu(selectedStreams, probeData, undefined, true);
-      
     } else if (result.action === 'edit_tags') {
       selectedStreams = await editTagsMenu(selectedStreams, probeData, undefined, false);
+    } else {
+      menuLoop = false;
     }
   }
 }
