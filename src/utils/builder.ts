@@ -1,5 +1,7 @@
 import path from 'path';
 import { getDynamicVideoEncoder, getDynamicAudioEncoder } from './ffmpeg.ts';
+import type { FFprobeData, SelectedStream } from '../types/media';
+import type { FallbackRules } from '../types/config';
 
 const getFinalPath = (p: string, isRepair: boolean) => {
   if (!isRepair) return p;
@@ -7,11 +9,21 @@ const getFinalPath = (p: string, isRepair: boolean) => {
   return path.join(parsed.dir, `${parsed.name}_repaired${parsed.ext}`);
 };
 
-export function buildCheckCommand(selectedStreams: any[], probeData: any, fallbackRules: any, isVideoCompatible: boolean, videoPath: string, outputPath: string, useRepairMode: boolean = false) {
+export function buildCheckCommand(
+  selectedStreams: SelectedStream[],
+  probeData: FFprobeData,
+  fallbackRules: FallbackRules,
+  isVideoCompatible: boolean,
+  videoPath: string,
+  outputPath: string,
+  useRepairMode: boolean = false
+) {
   let codecArgs: string[] = [];
   let mapArgs: string[] = [];
   let metaArgs: string[] = [];
-  let vOutIdx = 0, aOutIdx = 0, sOutIdx = 0;
+  let vOutIdx = 0;
+  let aOutIdx = 0;
+  let sOutIdx = 0;
 
   let preCmds: string[] = [];
   let postCmds: string[] = [];
@@ -55,8 +67,10 @@ export function buildCheckCommand(selectedStreams: any[], probeData: any, fallba
         mapArgs.push(`-map 0:${stream.streamIndex}`);
         codecArgs.push(`-c:a:${aOutIdx} copy`);
       } else {
-        const target = fallbackRules.audio.acceptable.includes(stream.codec) ? stream.codec : ((fallbackRules.audio.mappings as any)[stream.codec] || fallbackRules.audio.mappings.default).target;
-        const fullStream = probeData.streams.find((st: any) => st.index === stream.streamIndex);
+        const target = fallbackRules.audio.acceptable.includes(stream.codec)
+          ? stream.codec
+          : (fallbackRules.audio.mappings[stream.codec] ?? fallbackRules.audio.mappings.default).target;
+        const fullStream = probeData.streams.find((st) => st.index === stream.streamIndex);
         const encoderStr = getDynamicAudioEncoder(fullStream, target, aOutIdx);
 
         if (useRepairMode) {
@@ -104,7 +118,18 @@ export function buildCheckCommand(selectedStreams: any[], probeData: any, fallba
   return mainCmd;
 }
 
-export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any, fallbackRules: any, pathA: string, pathB: string, outputPath: string, delayMs: number = 0, applyShortest: boolean = false, useRepairMode: boolean = false) {
+export function buildMergeCommand(
+  selectedStreams: SelectedStream[],
+  infoA: FFprobeData,
+  infoB: FFprobeData,
+  fallbackRules: FallbackRules,
+  pathA: string,
+  pathB: string,
+  outputPath: string,
+  delayMs: number = 0,
+  applyShortest: boolean = false,
+  useRepairMode: boolean = false
+) {
   let mapArgs: string[] = [];
   let vCodecArg = '-c:v copy';
   let aCodecArgs: string[] = [];
@@ -116,14 +141,16 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
   if (delayMs > 0) offsetB = `-itsoffset ${delayMs / 1000} `;
   else if (delayMs < 0) offsetA = `-itsoffset ${Math.abs(delayMs) / 1000} `;
 
-  const hasVideo = selectedStreams.some((s: any) => s.type === 'video');
+  const hasVideo = selectedStreams.some((s) => s.type === 'video');
 
   if (hasVideo) {
-    const vStream = selectedStreams.find((s: any) => s.type === 'video');
-    let codecName = vStream.codec;
-    if (codecName === 'h264') codecName = 'h264_8bit'; 
-    if (codecName !== fallbackRules.video.target) {
-      vCodecArg = getDynamicVideoEncoder(fallbackRules.video.target);
+    const vStream = selectedStreams.find((s) => s.type === 'video');
+    if (vStream) {
+      let codecName = vStream.codec;
+      if (codecName === 'h264') codecName = 'h264_8bit';
+      if (codecName !== fallbackRules.video.target) {
+        vCodecArg = getDynamicVideoEncoder(fallbackRules.video.target);
+      }
     }
   }
 
@@ -143,9 +170,6 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
   let videoOutputIndex = 0;
   let subtitleOutputIndex = 0;
 
-  const vStreamRef = selectedStreams.find((s: any) => s.type === 'video');
-  const anchorVideoFileIndex = vStreamRef ? vStreamRef.fileIndex : 0; 
-
   for (const stream of selectedStreams) {
     if (stream.type === 'audio') {
       const applyRepairToThisStream = useRepairMode;
@@ -154,9 +178,11 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
         aCodecArgs.push(`-c:a:${audioOutputIndex} copy`);
         mapArgs.push(`-map ${stream.fileIndex}:${stream.streamIndex}`);
       } else {
-        const target = fallbackRules.audio.acceptable.includes(stream.codec) ? stream.codec : ((fallbackRules.audio.mappings as any)[stream.codec] || fallbackRules.audio.mappings.default).target;
+        const target = fallbackRules.audio.acceptable.includes(stream.codec)
+          ? stream.codec
+          : (fallbackRules.audio.mappings[stream.codec] ?? fallbackRules.audio.mappings.default).target;
         const sourceInfo = stream.fileIndex === 0 ? infoA : infoB;
-        const fullStream = sourceInfo.streams.find((st: any) => st.index === stream.streamIndex);
+        const fullStream = sourceInfo.streams.find((st) => st.index === stream.streamIndex);
         const encoderStr = getDynamicAudioEncoder(fullStream, target, audioOutputIndex);
 
         if (applyRepairToThisStream) {
