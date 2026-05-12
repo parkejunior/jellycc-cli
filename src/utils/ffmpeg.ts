@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import { spinner } from '@clack/prompts';
 import pc from 'picocolors';
 import { t } from './i18n.ts';
+import { JellyError } from './errors.ts';
 import type { MediaStream } from '../types/media';
 
 export function parseFfmpegTime(timeStr: string) {
@@ -49,7 +50,7 @@ export async function runDeepScan(inputs: string[], maps: string[], totalDuratio
 
   let hasErrors = false;
 
-  return new Promise<boolean>((resolve) => {
+  return new Promise<boolean>((resolve, reject) => {
     // Montagem dinâmica dos argumentos para ler apenas o que importa
     const ffmpegArgs = ['-v', 'warning', '-stats'];
     inputs.forEach(inp => { ffmpegArgs.push('-i', inp); });
@@ -112,6 +113,11 @@ export async function runDeepScan(inputs: string[], maps: string[], totalDuratio
       }
       console.log('');
       resolve(hasErrors);
+    });
+
+    ff.on('error', () => {
+      dsSpinner.stop(pc.red(t('scanDeepFail', '-1')));
+      reject(new JellyError(t('scanDeepFail', '-1'), 'FFMPEG_START_FAILED'));
     });
   });
 }
@@ -177,13 +183,13 @@ export async function runConversion(ffmpegCmd: string, totalDurationSec: number,
         resolve();
       } else {
         convSpinner.stop(pc.red(t('convFail', code)));
-        reject(new Error('FFmpeg falhou'));
+        reject(new JellyError(t('convFail', code ?? -1), 'FFMPEG_FAILED'));
       }
     });
 
     ff.on('error', (err: Error) => {
       convSpinner.stop(pc.red(t('convStartFail', err.message)));
-      reject(err);
+      reject(new JellyError(t('convStartFail', err.message), 'FFMPEG_START_FAILED'));
     });
   });
 }

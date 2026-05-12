@@ -1,5 +1,5 @@
 import { t } from '../utils/i18n.ts';
-import { text, cancel, note, confirm, groupMultiselect, log } from '@clack/prompts';
+import { text, note, confirm, groupMultiselect, log } from '@clack/prompts';
 import pc from 'picocolors';
 import fs from 'fs';
 import path from 'path';
@@ -11,6 +11,7 @@ import { getDiagnostic } from '../services/analyzer.ts';
 import { filterGarbageStreams } from '../utils/mediaUtils.ts';
 import { renderMatrix, renderActionPlan } from '../views/checkView.ts';
 import { buildGroupedOptions } from '../views/streamOptions.ts';
+import { ValidationError } from '../utils/errors.ts';
 import type { SelectedStream } from '../types/media';
 import type { FallbackRules, JellyfinSupportMatrix } from '../types/config';
 
@@ -37,8 +38,7 @@ export async function checkCommand(args: string[]) {
     }));
     videoPath = sanitizePath(rawPath);
   } else if (!fs.existsSync(videoPath)) {
-    cancel(t('filePassedNotFound'));
-    process.exit(1);
+    throw new ValidationError(t('filePassedNotFound'));
   }
 
   runQuickScan(videoPath as string);

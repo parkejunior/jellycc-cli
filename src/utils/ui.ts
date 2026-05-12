@@ -1,14 +1,14 @@
-import { isCancel, cancel, select, outro, text, confirm } from '@clack/prompts';
+import { isCancel, select, outro, text, confirm } from '@clack/prompts';
 import pc from 'picocolors';
 import { runConversion, runDeepScan } from './ffmpeg.ts';
 import { getRepairOutputPath } from '../services/repair.ts';
 import { t } from './i18n.ts';
+import { UserCancelError } from './errors.ts';
 import type { FFprobeData, SelectedStream } from '../types/media';
 
 export function onCancel<T>(value: T): Exclude<T, symbol> {
   if (isCancel(value)) {
-    cancel(t('cancel'));
-    process.exit(0);
+    throw new UserCancelError(t('cancel'));
   }
   return value as Exclude<T, symbol>;
 }
@@ -101,34 +101,29 @@ export async function handleExecutionMenu(options: {
   const runActions = ['run', 'run_and_scan', 'run_repair', 'run_repair_and_scan'];
   
   if (action && runActions.includes(action)) {
-    try {
-      const isRepair = action === 'run_repair' || action === 'run_repair_and_scan';
-      const cmdToRun = isRepair ? options.ffmpegRepairCmd! : options.ffmpegCmd;
-      
-      let actualOutputPath = options.outputPath;
-      if (isRepair) {
-        actualOutputPath = getRepairOutputPath(options.outputPath);
-      }
-      
-      await runConversion(cmdToRun, options.totalDuration, options.totalFrames);
-      
-      if (action === 'run_and_scan' || action === 'run_repair_and_scan') {
-        await runDeepScan([actualOutputPath], ['0'], options.totalDuration);
-      }
-
-      const successMsg = options.isMerge ? t('successMerge') : t('successOp');
-      outro(pc.green(successMsg));
-    } catch (err) {
-      console.error(pc.red(t('errorOp')));
-      process.exit(1);
+    const isRepair = action === 'run_repair' || action === 'run_repair_and_scan';
+    const cmdToRun = isRepair ? options.ffmpegRepairCmd! : options.ffmpegCmd;
+    
+    let actualOutputPath = options.outputPath;
+    if (isRepair) {
+      actualOutputPath = getRepairOutputPath(options.outputPath);
     }
+
+    await runConversion(cmdToRun, options.totalDuration, options.totalFrames);
+    
+    if (action === 'run_and_scan' || action === 'run_repair_and_scan') {
+      await runDeepScan([actualOutputPath], ['0'], options.totalDuration);
+    }
+
+    const successMsg = options.isMerge ? t('successMerge') : t('successOp');
+    outro(pc.green(successMsg));
     return { action: 'done', deepScanCompleted: dsCompleted, hasErrors: fileHasErrors };
   } else if (action === 'exit') {
     if (!options.isPerfect) {
       console.log(`\n${pc.dim(t('cleanCmdGenerated'))}\n${pc.yellow(options.ffmpegCmd)}\n`);
     }
     outro(t('opFinished'));
-    process.exit(0);
+    return { action: 'exit', deepScanCompleted: dsCompleted, hasErrors: fileHasErrors };
   }
   
   return { action: 'exit', deepScanCompleted: dsCompleted, hasErrors: fileHasErrors };

@@ -1,7 +1,8 @@
 import { execSync } from 'child_process';
-import { spinner, cancel } from '@clack/prompts';
+import { spinner } from '@clack/prompts';
 import pc from 'picocolors';
 import { t } from './i18n.ts';
+import { JellyError, ValidationError } from './errors.ts';
 import type { FFprobeData } from '../types/media';
 
 export function runQuickScan(videoPath: string) {
@@ -12,8 +13,10 @@ export function runQuickScan(videoPath: string) {
     qsSpinner.stop(pc.green(t('scanQuickPass')));
   } catch (err) {
     qsSpinner.stop(pc.red(t('scanQuickFail')));
-    cancel(t('scanCorrupted'));
-    process.exit(1);
+    if (err instanceof Error && 'code' in err && (err as { code?: string }).code === 'ENOENT') {
+      throw new JellyError(t('scanAnalyzeErr'), 'FFPROBE_NOT_FOUND');
+    }
+    throw new ValidationError(t('scanCorrupted'));
   }
 }
 
@@ -29,6 +32,6 @@ export function getMediaInfo(videoPath: string): FFprobeData {
     return probeData;
   } catch (err) {
     s.stop(pc.red(t('scanAnalyzeErr')));
-    process.exit(1);
+    throw new JellyError(t('scanAnalyzeErr'), 'FFPROBE_JSON_ERROR');
   }
 }
