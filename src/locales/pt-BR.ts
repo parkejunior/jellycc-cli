@@ -94,7 +94,7 @@ export default {
   scanQuickFail: '✖ Quick Scan reprovado: O arquivo está danificado ou ilegível.',
   scanCorrupted: 'Mídia corrompida. Abortando análise para evitar falhas no servidor.',
   scanAnalyze: 'Analisando as entranhas do vídeo com ffprobe...',
-  scanAnalyzeErr: 'Erro ao executar ffprobe JSON.',
+  scanAnalyzeErr: '✖ Falha ao analisar a mídia com ffprobe.',
   scanAnalyzeDone: 'Análise de codec concluída!',
   scanDeepStart: '🔍 Iniciando Deep Scan...',
   scanDeepProgress: '🔍 Deep Scan em andamento: {0}%',

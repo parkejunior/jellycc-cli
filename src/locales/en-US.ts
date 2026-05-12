@@ -94,7 +94,7 @@ export default {
   scanQuickFail: '✖ Quick Scan failed: The file is damaged or unreadable.',
   scanCorrupted: 'Corrupted media. Aborting analysis to prevent server crashes.',
   scanAnalyze: 'Analyzing video internals with ffprobe...',
-  scanAnalyzeErr: 'Error executing ffprobe JSON.',
+  scanAnalyzeErr: '✖ Failed to analyze media with ffprobe.',
   scanAnalyzeDone: 'Codec analysis complete!',
   scanDeepStart: '🔍 Starting Deep Scan...',
   scanDeepProgress: '🔍 Deep Scan in progress: {0}%',
