@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/parkejunior/jellycc-cli/compare/v0.3.0...v0.4.0) (2026-05-12)
+
+
+### Features
+
+* create config command and use instead lang command ([06d1cb7](https://github.com/parkejunior/jellycc-cli/commit/06d1cb7048c0e5456f4c62860e987e0e450200cb))
+
+
+### Bug Fixes
+
+* use dynamic video target rule instead static h264_8bit ([94329b0](https://github.com/parkejunior/jellycc-cli/commit/94329b099421337f966ff0a1a73aceff79227cbe))
+
 ## [0.3.0](https://github.com/parkejunior/jellycc-cli/compare/v0.2.0...v0.3.0) (2026-05-08)
 
 
