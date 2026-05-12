@@ -15,13 +15,19 @@ export function onCancel<T>(value: T): Exclude<T, symbol> {
 
 export const sanitizePath = (p: string | undefined | null) => p ? p.trim().replace(/^['"]|['"]$/g, '') : p;
 
+export interface ExecutionMenuResult {
+  action: string;
+  deepScanCompleted: boolean;
+  hasErrors: boolean;
+}
+
 export async function handleExecutionMenu(options: {
   ffmpegCmd: string;
   ffmpegRepairCmd?: string;
   fullScanInputs: string[];
   fullScanMaps: string[];
-  selectedScanInputs?: string[]; // Tornou-se opcional
-  selectedScanMaps?: string[];   // Tornou-se opcional
+  selectedScanInputs?: string[];
+  selectedScanMaps?: string[];
   outputPath: string;
   totalDuration: number;
   totalFrames: number;
@@ -32,8 +38,8 @@ export async function handleExecutionMenu(options: {
   isMerge?: boolean;
   allowStreamSelection?: boolean;
   allowSyncAdjustment?: boolean;
-  allowMyopicScan?: boolean;     // <-- A CHAVE NOVA AQUI
-}): Promise<{ action: string, deepScanCompleted: boolean, hasErrors: boolean }> {
+  allowMyopicScan?: boolean;
+}): Promise<ExecutionMenuResult> {
   let action = 'exit';
   let keepMenuOpen = true;
   let dsCompleted = options.deepScanCompleted || false;
@@ -69,7 +75,6 @@ export async function handleExecutionMenu(options: {
     }
 
     if (!dsCompleted) {
-      // A MÁGICA VISUAL AQUI
       if (options.allowMyopicScan) {
         menuOptions.push({ label: t('menuDeepScanSelected'), value: 'deep_scan_selected' });
         menuOptions.push({ label: t('menuDeepScanFull'), value: 'deep_scan_full' });
@@ -92,7 +97,7 @@ export async function handleExecutionMenu(options: {
       fileHasErrors = await runDeepScan(options.fullScanInputs, options.fullScanMaps, options.totalDuration);
       dsCompleted = true;
     } else if (action === 'select_streams' || action === 'adjust_sync' || action === 'edit_tags') {
-      return { action: action as string, deepScanCompleted: dsCompleted, hasErrors: fileHasErrors };
+      return { action, deepScanCompleted: dsCompleted, hasErrors: fileHasErrors };
     } else {
       keepMenuOpen = false;
     }
@@ -135,32 +140,33 @@ export async function editTagsMenu(
   infoB?: FFprobeData,
   autoPromptUnd: boolean = false
 ): Promise<SelectedStream[]> {
-  // 1. Preenche as tags vazias com os dados originais silenciosamente
-  selectedStreams.forEach(s => {
-    const sourceInfo = (s.fileIndex === 1 && infoB) ? infoB : infoA;
-    const fullStream = sourceInfo.streams.find((st) => st.index === s.streamIndex);
-    if (s.language === undefined) s.language = fullStream?.tags?.language || 'und';
-    if (s.title === undefined) s.title = fullStream?.tags?.title || '';
+  selectedStreams = selectedStreams.map((stream) => {
+    const sourceInfo = (stream.fileIndex === 1 && infoB) ? infoB : infoA;
+    const fullStream = sourceInfo.streams.find((st) => st.index === stream.streamIndex);
+
+    return {
+      ...stream,
+      language: stream.language === undefined ? (fullStream?.tags?.language || 'und') : stream.language,
+      title: stream.title === undefined ? (fullStream?.tags?.title || '') : stream.title
+    };
   });
 
-  // 2. Se for modo automático, verifica se tem lixo (UND) apenas em Áudios e Legendas!
   if (autoPromptUnd) {
-    const hasUnd = selectedStreams.some(s => (s.language ?? 'und').toLowerCase() === 'und' && s.type !== 'video');
-    
-    if (!hasUnd) return selectedStreams; // Vídeos UND são ignorados e passam reto
+    const hasUnd = selectedStreams.some((stream) => (stream.language ?? 'und').toLowerCase() === 'und' && stream.type !== 'video');
 
-    const editing = await confirm({
+    if (!hasUnd) return selectedStreams;
+
+    const editing = onCancel(await confirm({
       message: t('tagEditUndDetected'),
       initialValue: true
-    });
-    if (onCancel(editing) === false) return selectedStreams;
+    }));
+    if (editing === false) return selectedStreams;
   }
 
-  // 3. O Menu de Edição em si
   let looping = true;
   while (looping) {
     const options = selectedStreams.map((s, index) => {
-      let typeLabel = s.type === 'subtitle' ? t('typeSub') : (s.type === 'audio' ? t('typeAudio') : t('typeVideo'));
+      const typeLabel = s.type === 'subtitle' ? t('typeSub') : (s.type === 'audio' ? t('typeAudio') : t('typeVideo'));
       let label = `[${typeLabel}] ${s.codec.toUpperCase()}`;
       if (s.fileIndex !== undefined) label += t('fileArq', s.fileIndex === 0 ? 'A' : 'B');
       label += `${t('tagLang')}${(s.language ?? 'und').toUpperCase()}`;
@@ -184,15 +190,21 @@ export async function editTagsMenu(
     const st = selectedStreams[pickedIdx];
     if (!st) continue;
 
-    st.language = onCancel(await text({
-      message: t('tagEditLang'),
-      initialValue: st.language,
-    })) as string;
+    const updatedStream = {
+      ...st,
+      language: onCancel(await text({
+        message: t('tagEditLang'),
+        initialValue: st.language,
+      })),
+      title: onCancel(await text({
+        message: t('tagEditTitle'),
+        initialValue: st.title,
+      }))
+    };
 
-    st.title = onCancel(await text({
-      message: t('tagEditTitle'),
-      initialValue: st.title,
-    })) as string;
+    selectedStreams = selectedStreams.map((stream, index) => (
+      index === pickedIdx ? updatedStream : stream
+    ));
   }
 
   return selectedStreams;
