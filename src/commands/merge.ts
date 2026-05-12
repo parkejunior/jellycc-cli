@@ -8,8 +8,18 @@ import { onCancel, sanitizePath, handleExecutionMenu, editTagsMenu } from '../ut
 import { getMediaInfo } from '../utils/ffprobe.ts';
 import { buildMergeCommand } from '../utils/builder.ts';
 import { formatFps, formatDuration, formatSize, padLabel, isImageSubtitle, formatSubtitleCodec, calculateTotalFrames } from '../utils/formatters.ts';
+import type { FFprobeData, MediaStream, SelectedStream, GroupedStreamOptions } from '../types/media';
+import type { FallbackRules } from '../types/config';
 
-import fallbackRules from '../config/fallback_rules.yaml';
+import fallbackRulesData from '../config/fallback_rules.yaml';
+
+const fallbackRules = fallbackRulesData as FallbackRules;
+
+type VideoInfo = {
+  width: number;
+  height: number;
+  bitrate: number;
+};
 
 export async function mergeCommand(args: string[]) {
   let pathA = onCancel(await text({
@@ -32,38 +42,41 @@ export async function mergeCommand(args: string[]) {
     }
   }));
 
-  pathA = sanitizePath(pathA as string);
-  pathB = sanitizePath(pathB as string);
+  pathA = sanitizePath(pathA as string)!;
+  pathB = sanitizePath(pathB as string)!;
 
-  const infoA = getMediaInfo(pathA as string);
-  const infoB = getMediaInfo(pathB as string);
+  const infoA: FFprobeData = getMediaInfo(pathA as string);
+  const infoB: FFprobeData = getMediaInfo(pathB as string);
   const durA = infoA.format?.duration ? parseFloat(infoA.format.duration) : 0;
   const durB = infoB.format?.duration ? parseFloat(infoB.format.duration) : 0;
 
-  const vStreamRef = infoA.streams.find((s: any) => s.codec_type === 'video' && s.codec_name !== 'mjpeg');
+  const vStreamRef = infoA.streams.find((s) => s.codec_type === 'video' && s.codec_name !== 'mjpeg');
   const totalFrames = calculateTotalFrames(vStreamRef, Math.max(durA, durB));
 
-  const getVideoStreamInfo = (info: any) => {
-    const stream = info.streams.find((s: any) => s.codec_type === 'video');
+  const getVideoStreamInfo = (info: FFprobeData): VideoInfo | null => {
+    const stream = info.streams.find((s) => s.codec_type === 'video');
     if (!stream) return null;
-    return { width: stream.width || 0, height: stream.height || 0, bitrate: stream.bit_rate ? parseInt(stream.bit_rate) : 0 };
+    return { width: stream.width || 0, height: stream.height || 0, bitrate: stream.bit_rate ? Number.parseInt(stream.bit_rate, 10) : 0 };
   };
 
   const vA = getVideoStreamInfo(infoA);
   const vB = getVideoStreamInfo(infoB);
 
-  let suggestedVideo = 'A';
+  let suggestedVideo: 'A' | 'B' = 'A';
   if (vA && vB) {
     const pixelsA = vA.width * vA.height;
     const pixelsB = vB.width * vB.height;
     if (pixelsB > pixelsA || (pixelsB === pixelsA && vB.bitrate > vA.bitrate)) suggestedVideo = 'B';
   }
 
-  const buildGroupedOptions = (infoA: any, infoB: any, currentSelected?: any[]) => {
-    const groups: Record<string, any[]> = { [t('groupVideo')]: [], [t('groupAudio')]: [], [t('groupSubs')]: [] };
-    const initialValues: any[] = [];
+  const buildGroupedOptions = (infoA: FFprobeData, infoB: FFprobeData, currentSelected?: SelectedStream[]) => {
+    const groupVideo = t('groupVideo');
+    const groupAudio = t('groupAudio');
+    const groupSubs = t('groupSubs');
+    const groups: GroupedStreamOptions = { [groupVideo]: [], [groupAudio]: [], [groupSubs]: [] };
+    const initialValues: SelectedStream[] = [];
 
-    const processStream = (s: any, fileLabel: string, fileIndex: number) => {
+    const processStream = (s: MediaStream, fileLabel: string, fileIndex: number) => {
       if (s.codec_type === 'video' && ['mjpeg', 'png', 'bmp'].includes(s.codec_name)) return;
       let label = '';
       const lang = s.tags && s.tags.language ? s.tags.language.toUpperCase() : 'UND';
@@ -84,15 +97,15 @@ export async function mergeCommand(args: string[]) {
         label = `[${s.codec_type}] ${s.codec_name}`;
       }
       
-      const optionValue = { fileIndex, streamIndex: s.index, type: s.codec_type, codec: s.codec_name };
+      const optionValue: SelectedStream = { fileIndex, streamIndex: s.index, type: s.codec_type, codec: s.codec_name };
       const option = { value: optionValue, label: `${label}${t('fileSuffix', fileLabel)}` };
 
-      if (s.codec_type === 'video') groups[t('groupVideo')]!.push(option);
-      else if (s.codec_type === 'audio') groups[t('groupAudio')]!.push(option);
-      else groups[t('groupSubs')]!.push(option);
+      if (s.codec_type === 'video') groups[groupVideo]!.push(option);
+      else if (s.codec_type === 'audio') groups[groupAudio]!.push(option);
+      else groups[groupSubs]!.push(option);
 
       if (currentSelected) {
-        if (currentSelected.some((cs: any) => cs.fileIndex === fileIndex && cs.streamIndex === s.index)) {
+        if (currentSelected.some((cs) => cs.fileIndex === fileIndex && cs.streamIndex === s.index)) {
           initialValues.push(optionValue);
         }
       } else {
@@ -100,22 +113,23 @@ export async function mergeCommand(args: string[]) {
       }
     };
 
-    infoA.streams.forEach((s: any) => processStream(s, 'A', 0));
-    infoB.streams.forEach((s: any) => processStream(s, 'B', 1));
+    infoA.streams.forEach((s) => processStream(s, 'A', 0));
+    infoB.streams.forEach((s) => processStream(s, 'B', 1));
     Object.keys(groups).forEach(k => { if (groups[k]!.length === 0) delete groups[k]; });
     return { groups, initialValues };
   };
 
-  const buildFileSummary = (info: any) => {
+  const buildFileSummary = (info: FFprobeData) => {
     const duration = info.format?.duration ? formatDuration(parseFloat(info.format.duration)) : 'N/A';
     const size = info.format?.size ? formatSize(parseInt(info.format.size)) : 'N/A';
-    const videos = info.streams.filter((s: any) => s.codec_type === 'video');
-    const audios = info.streams.filter((s: any) => s.codec_type === 'audio');
-    const subs = info.streams.filter((s: any) => s.codec_type === 'subtitle');
+    const videos = info.streams.filter((s) => s.codec_type === 'video');
+    const audios = info.streams.filter((s) => s.codec_type === 'audio');
+    const subs = info.streams.filter((s) => s.codec_type === 'subtitle');
+    const firstVideo = videos[0];
     return {
       duration, size,
-      vSummary: videos.length > 0 ? `${videos[0].codec_name} (${videos[0].width}x${videos[0].height})` : t('mergeNone'),
-      aSummary: audios.length > 0 ? `${audios.length} ${t('checkTrack')} (${audios.map((a: any) => a.codec_name).join(', ')})` : t('mergeNone'),
+      vSummary: firstVideo ? `${firstVideo.codec_name} (${firstVideo.width}x${firstVideo.height})` : t('mergeNone'),
+      aSummary: audios.length > 0 ? `${audios.length} ${t('checkTrack')} (${audios.map((a) => a.codec_name).join(', ')})` : t('mergeNone'),
       sSummary: subs.length > 0 ? `${subs.length} ${t('checkTrack')}` : t('mergeNone')
     };
   };
@@ -134,12 +148,12 @@ export async function mergeCommand(args: string[]) {
   ].join('\n'), t('mergeComparison'));
 
   let { groups, initialValues } = buildGroupedOptions(infoA, infoB);
-  let selectedStreams = onCancel(await groupMultiselect({
+  let selectedStreams: SelectedStream[] = onCancel(await groupMultiselect<SelectedStream>({
     message: `${t('mergeSelectStreams')} (${t('fileSuggest', suggestedVideo)})`,
     options: groups,
     required: true,
-    initialValues: initialValues.filter(Boolean),
-  })) as any[];
+    initialValues,
+  })) as SelectedStream[];
 
   selectedStreams = await editTagsMenu(selectedStreams, infoA, infoB, true);
 
@@ -148,7 +162,7 @@ export async function mergeCommand(args: string[]) {
 
   const askForSync = async () => {
     const exactDiffMs = Math.round((durA - durB) * 1000);
-    const options = [];
+    const options: Array<{ label: string; value: string }> = [];
 
     // O "Auto-alinhar" só aparece se houver diferença de duração física
     if (Math.abs(exactDiffMs) > 1000) {
@@ -165,7 +179,7 @@ export async function mergeCommand(args: string[]) {
     const chosenSyncAction = onCancel(await select({
       message: t('mergeHowToSync'),
       options: options
-    })) as string;
+    }));
 
     if (chosenSyncAction === 'auto') {
       currentDelayMs = exactDiffMs;
@@ -212,7 +226,7 @@ export async function mergeCommand(args: string[]) {
     let cutMsg = applyShortest ? pc.yellow(t('strictCut')) : '';
 
     // UI Contextual elegante usando o log do Clack
-    const hasSubs = selectedStreams.some((s: any) => s.type === 'subtitle');
+    const hasSubs = selectedStreams.some((s) => s.type === 'subtitle');
     if (currentDelayMs !== 0 && hasSubs) {
       log.info(pc.cyan(t('syncWarning')));
     }
@@ -222,8 +236,8 @@ export async function mergeCommand(args: string[]) {
     // Mapeamento Total: Todos os vídeos/áudios do Arquivo 0 (A) e do Arquivo 1 (B)
     const fullScanInputs = [pathA as string, pathB as string];
     const fullScanMaps = [
-      ...infoA.streams.filter((s: any) => s.codec_type === 'video' || s.codec_type === 'audio').map((s: any) => `0:${s.index}`),
-      ...infoB.streams.filter((s: any) => s.codec_type === 'video' || s.codec_type === 'audio').map((s: any) => `1:${s.index}`)
+      ...infoA.streams.filter((s) => s.codec_type === 'video' || s.codec_type === 'audio').map((s) => `0:${s.index}`),
+      ...infoB.streams.filter((s) => s.codec_type === 'video' || s.codec_type === 'audio').map((s) => `1:${s.index}`)
     ];
 
     const result = await handleExecutionMenu({
@@ -247,12 +261,12 @@ export async function mergeCommand(args: string[]) {
 
     if (result.action === 'select_streams') {
       const refreshedOptions = buildGroupedOptions(infoA, infoB, selectedStreams);
-      selectedStreams = onCancel(await groupMultiselect({
+      selectedStreams = onCancel(await groupMultiselect<SelectedStream>({
         message: t('mergeModifyStreams'),
         options: refreshedOptions.groups,
         required: true,
         initialValues: refreshedOptions.initialValues,
-      })) as any[];
+      })) as SelectedStream[];
 
       selectedStreams = await editTagsMenu(selectedStreams, infoA, infoB, true);
       

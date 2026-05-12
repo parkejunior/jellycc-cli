@@ -8,9 +8,16 @@ import { onCancel, sanitizePath, handleExecutionMenu, editTagsMenu } from '../ut
 import { runQuickScan, getMediaInfo } from '../utils/ffprobe.ts';
 import { buildCheckCommand } from '../utils/builder.ts';
 import { formatFps, formatBitrate, getBitDepth, formatSampleRate, formatChannels, padLabel, isImageSubtitle, formatSubtitleCodec, isAttachedPic, calculateTotalFrames } from '../utils/formatters.ts';
+import type { FFprobeData, MediaStream, SelectedStream, GroupedStreamOptions } from '../types/media';
+import type { FallbackRules, JellyfinSupportMatrix } from '../types/config';
 
-import supportMatrix from '../config/jellyfin_codec_support.yaml';
-import fallbackRules from '../config/fallback_rules.yaml';
+import supportMatrixData from '../config/jellyfin_codec_support.yaml';
+import fallbackRulesData from '../config/fallback_rules.yaml';
+
+const supportMatrix = supportMatrixData as JellyfinSupportMatrix;
+const fallbackRules = fallbackRulesData as FallbackRules;
+
+type MatrixValue = boolean | string;
 
 export async function checkCommand(args: string[]) {
   const deepScanFlag = args.includes('--deep-scan');
@@ -36,13 +43,13 @@ export async function checkCommand(args: string[]) {
   runQuickScan(videoPath as string);
 
   const clients = Object.keys(supportMatrix.clients);
-  const probeData = getMediaInfo(videoPath as string);
+  const probeData: FFprobeData = getMediaInfo(videoPath as string);
   const totalDuration = probeData.format && probeData.format.duration ? parseFloat(probeData.format.duration) : 0;
   
-  const videoStream = probeData.streams.find((st: any) => st.codec_type === 'video' && !isAttachedPic(st));
-  const audioStreams = probeData.streams.filter((st: any) => st.codec_type === 'audio');
-  const attachedPics = probeData.streams.filter((st: any) => st.codec_type === 'video' && isAttachedPic(st));
-  const subStreams = probeData.streams.filter((st: any) => st.codec_type === 'subtitle');
+  const videoStream = probeData.streams.find((st) => st.codec_type === 'video' && !isAttachedPic(st));
+  const audioStreams = probeData.streams.filter((st) => st.codec_type === 'audio');
+  const attachedPics = probeData.streams.filter((st) => st.codec_type === 'video' && isAttachedPic(st));
+  const subStreams = probeData.streams.filter((st) => st.codec_type === 'subtitle');
   
   const totalFrames = calculateTotalFrames(videoStream, totalDuration);
   const ext = path.extname(videoPath as string).toLowerCase().replace('.', '');
@@ -54,10 +61,10 @@ export async function checkCommand(args: string[]) {
     return ext; 
   };
 
-  const mapVideoCodec = (stream: any) => {
+  const mapVideoCodec = (stream: MediaStream | undefined): string | null => {
     if (!stream) return null;
-    let codec = stream.codec_name; 
-    const is10bit = stream.pix_fmt && stream.pix_fmt.includes('10');
+    let codec = stream.codec_name;
+    const is10bit = Boolean(stream.pix_fmt && stream.pix_fmt.includes('10'));
     if (codec === 'h264') return is10bit ? 'h264_10bit' : 'h264_8bit';
     if (codec === 'hevc') return is10bit ? 'hevc_10bit' : 'hevc_8bit';
     return codec;
@@ -65,9 +72,9 @@ export async function checkCommand(args: string[]) {
 
   const cKey = mapContainer(probeData.format.format_name);
   const vKey = mapVideoCodec(videoStream);
-  const aKey = audioStreams.length > 0 ? audioStreams[0].codec_name : null;
+  const aKey = audioStreams[0]?.codec_name ?? null;
 
-  const formatResult = (status: any, key: any) => {
+  const formatResult = (status: MatrixValue | undefined, key: string | null) => {
     if (!key) return pc.dim(t('checkUnknown'));
     if (status === true) return pc.green(t('checkDirectPlay'));
     if (status === false) return pc.red(t('checkTranscode'));
@@ -78,10 +85,11 @@ export async function checkCommand(args: string[]) {
   let resultText = `\n${pc.bold(t('checkFile'))} ${path.basename(videoPath as string)}\n${pc.bold(t('checkContainer'))} ${cKey}  |  ${pc.bold(t('checkVideo'))} ${vKey}  |  ${pc.bold(t('checkAudio'))} ${audioStreams.length} ${t('checkTrack')}\n\n${pc.bold(pc.cyan(t('checkMatrixTitle')))}\n`;
 
   for (const client of clients) {
-    const matrix = (supportMatrix.clients as any)[client];
+    const matrix = supportMatrix.clients[client];
+    if (!matrix) continue;
     const cStatus = matrix.containers[cKey];
-    const vStatus = matrix.video[vKey];
-    const aStatus = matrix.audio[aKey];
+    const vStatus = vKey ? matrix.video[vKey] : undefined;
+    const aStatus = aKey ? matrix.audio[aKey] : undefined;
 
     let badge = (cStatus === true && vStatus === true && aStatus === true) ? pc.green(t('badgeGreen')) : 
                 (cStatus === false || vStatus === false || aStatus === false) ? pc.red(t('badgeTranscode')) : pc.yellow(t('badgeWarning'));
@@ -110,7 +118,8 @@ export async function checkCommand(args: string[]) {
       modLines.push(`  ${padLabel(t('checkCodec'))} ${pc.green(vCodecOriginal + ' ✔')}\n  ${padLabel(t('checkRes'))} ${pc.dim(vRes)}\n  ${padLabel(t('checkFps'))} ${pc.dim(vFps)}\n  ${padLabel(t('checkBitDepth'))} ${pc.dim(vDepth)}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(vBitrate)}`);
     } else {
         const targetDepth = fallbackRules.video.target.includes('10bit') ? '10-bit' : '8-bit';
-        const targetName = fallbackRules.video.target.split('_')[0].toUpperCase();
+        const [targetNameBase] = fallbackRules.video.target.split('_');
+        const targetName = (targetNameBase ?? fallbackRules.video.target).toUpperCase();
 
         modLines.push(`  ${padLabel(t('checkCodec'))} ${pc.dim(vCodecOriginal)} ➔ ${pc.yellow(targetName)}\n  ${padLabel(t('checkRes'))} ${pc.dim(vRes)}\n  ${padLabel(t('checkFps'))} ${pc.dim(vFps)}\n  ${padLabel(t('checkBitDepth'))} ${vDepth === targetDepth ? pc.dim(targetDepth) : `${pc.dim(vDepth)} ➔ ${pc.yellow(targetDepth)}`}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(vBitrate)} ➔ ${pc.yellow(t('visuallyLossless'))}`);
     }
@@ -119,7 +128,7 @@ export async function checkCommand(args: string[]) {
 
   if (audioStreams.length > 0) {
     modLines.push(pc.bold(t('checkAudio').replace(':', '').toUpperCase()));
-    audioStreams.forEach((aStream: any, index: number) => {
+    audioStreams.forEach((aStream, index: number) => {
       const aSampleRate = formatSampleRate(aStream.sample_rate);
       const aBitrate = formatBitrate(aStream.bit_rate);
       const audioChannels = aStream.channels || 2;
@@ -130,10 +139,10 @@ export async function checkCommand(args: string[]) {
       if (fallbackRules.audio.acceptable.includes(aStream.codec_name)) {
         modLines.push(`  ${padLabel(trackLbl)} ${pc.green(aCodecOriginal + ' ✔')}\n  ${padLabel(t('checkChannels'))} ${pc.dim(aChannelsStr)}\n  ${padLabel(t('checkSample'))} ${pc.dim(aSampleRate)}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(aBitrate)}\n`);
       } else {
-        const map = (fallbackRules.audio.mappings as any)[aStream.codec_name] || fallbackRules.audio.mappings.default;
+        const map = fallbackRules.audio.mappings[aStream.codec_name] ?? fallbackRules.audio.mappings.default;
         let targetBitrateStr = 'Lossless';
         if (map.target !== 'flac') {
-          const sourceKbps = aStream.bit_rate ? Math.round(parseInt(aStream.bit_rate) / 1000) : Infinity;
+          const sourceKbps = aStream.bit_rate ? Math.round(Number.parseInt(aStream.bit_rate, 10) / 1000) : Infinity;
           let finalKbps = Math.min(audioChannels * 112, sourceKbps);
           if (map.target === 'eac3') finalKbps = Math.min(finalKbps, 768);
           targetBitrateStr = `${finalKbps} kbps`;
@@ -145,7 +154,7 @@ export async function checkCommand(args: string[]) {
 
   if (subStreams.length > 0) {
     modLines.push(pc.bold(t('checkSubs')));
-    subStreams.forEach((sStream: any, index: number) => {
+    subStreams.forEach((sStream, index: number) => {
       const lang = sStream.tags?.language ? sStream.tags.language.toUpperCase() : 'UND';
       const codec = formatSubtitleCodec(sStream.codec_name);
       if (!isImageSubtitle(sStream.codec_name)) {
@@ -159,7 +168,7 @@ export async function checkCommand(args: string[]) {
 
   if (attachedPics.length > 0) {
     modLines.push(pc.bold(t('checkExtras')));
-    attachedPics.forEach((st: any) => {
+    attachedPics.forEach((st) => {
       modLines.push(`  ${t('trackNum', st.index)} ${pc.yellow(st.codec_name.toUpperCase() + ' ⚠')} | ${t('checkType')} ${pc.dim(t('checkCover'))} | ${t('checkStatus')} ${pc.yellow(t('checkFpsRisk'))}`);
     });
     modLines.push('');
@@ -167,7 +176,7 @@ export async function checkCommand(args: string[]) {
 
   note(modLines.join('\n').trimEnd(), t('checkActionPlan'));
 
-  const hasGarbage = attachedPics.length > 0 || subStreams.some((st: any) => isImageSubtitle(st.codec_name));
+  const hasGarbage = attachedPics.length > 0 || subStreams.some((st) => isImageSubtitle(st.codec_name));
   let autoClean = false;
   
   if (hasGarbage) {
@@ -178,7 +187,7 @@ export async function checkCommand(args: string[]) {
     if (onCancel(autoClean) === false) autoClean = false;
   }
 
-  let selectedStreams = probeData.streams.map((s: any) => ({
+  let selectedStreams: SelectedStream[] = probeData.streams.map((s) => ({
     streamIndex: s.index,
     type: s.codec_type,
     codec: s.codec_name
@@ -187,8 +196,8 @@ export async function checkCommand(args: string[]) {
   selectedStreams = await editTagsMenu(selectedStreams, probeData, undefined, true);
 
   if (autoClean) {
-    selectedStreams = selectedStreams.filter((s: any) => {
-      const fullStream = probeData.streams.find((st: any) => st.index === s.streamIndex);
+    selectedStreams = selectedStreams.filter((s) => {
+      const fullStream = probeData.streams.find((st) => st.index === s.streamIndex);
       if (s.type === 'video' && fullStream?.disposition?.attached_pic === 1) return false;
       if (s.type === 'video' && ['mjpeg', 'png', 'bmp'].includes(s.codec)) return false;
       if (s.type === 'subtitle' && isImageSubtitle(s.codec)) return false;
@@ -196,11 +205,14 @@ export async function checkCommand(args: string[]) {
     });
   }
 
-  const buildGroupedOptions = (info: any, currentSelected: any[]) => {
-    const groups: Record<string, any[]> = { [t('groupVideo')]: [], [t('groupAudio')]: [], [t('groupSubs')]: [] };
-    const initialValues: any[] = [];
+  const buildGroupedOptions = (info: FFprobeData, currentSelected: SelectedStream[]) => {
+    const groupVideo = t('groupVideo');
+    const groupAudio = t('groupAudio');
+    const groupSubs = t('groupSubs');
+    const groups: GroupedStreamOptions = { [groupVideo]: [], [groupAudio]: [], [groupSubs]: [] };
+    const initialValues: SelectedStream[] = [];
 
-    info.streams.forEach((s: any) => {
+    info.streams.forEach((s) => {
       let label = '';
       const lang = s.tags && s.tags.language ? s.tags.language.toUpperCase() : 'UND';
       const title = s.tags && s.tags.title ? ` - "${s.tags.title}"` : '';
@@ -225,13 +237,13 @@ export async function checkCommand(args: string[]) {
         label = `[${s.codec_type}] ${s.codec_name}`;
       }
 
-      const valueObj = { streamIndex: s.index, type: s.codec_type, codec: s.codec_name };
+      const valueObj: SelectedStream = { streamIndex: s.index, type: s.codec_type, codec: s.codec_name };
 
-      if (s.codec_type === 'video') groups[t('groupVideo')]!.push({ value: valueObj, label });
-      else if (s.codec_type === 'audio') groups[t('groupAudio')]!.push({ value: valueObj, label });
-      else groups[t('groupSubs')]!.push({ value: valueObj, label });
+      if (s.codec_type === 'video') groups[groupVideo]!.push({ value: valueObj, label });
+      else if (s.codec_type === 'audio') groups[groupAudio]!.push({ value: valueObj, label });
+      else groups[groupSubs]!.push({ value: valueObj, label });
 
-      if (currentSelected.some((cs: any) => cs.streamIndex === s.index)) {
+      if (currentSelected.some((cs) => cs.streamIndex === s.index)) {
         initialValues.push(valueObj);
       }
     });
@@ -245,11 +257,11 @@ export async function checkCommand(args: string[]) {
   let hasMediaErrors = false;
 
   while (menuLoop) {
-    const selectedAudios = selectedStreams.filter((s: any) => s.type === 'audio');
-    const isAudioCompatible = selectedAudios.length === 0 || selectedAudios.every((s: any) => fallbackRules.audio.acceptable.includes(s.codec));
+    const selectedAudios = selectedStreams.filter((s) => s.type === 'audio');
+    const isAudioCompatible = selectedAudios.length === 0 || selectedAudios.every((s) => fallbackRules.audio.acceptable.includes(s.codec));
 
-    const tagsModified = selectedStreams.some((s: any) => {
-      const origStream = probeData.streams.find((st: any) => st.index === s.streamIndex);
+    const tagsModified = selectedStreams.some((s) => {
+      const origStream = probeData.streams.find((st) => st.index === s.streamIndex);
       const origLang = origStream?.tags?.language || 'und';
       const origTitle = origStream?.tags?.title || '';
       return s.language !== origLang || s.title !== origTitle;
@@ -274,7 +286,7 @@ export async function checkCommand(args: string[]) {
 
     // Mapeamento Parcial (Só o que você escolheu)
     const selectedScanInputs = [videoPath as string];
-    const selectedScanMaps = selectedStreams.map((s: any) => `0:${s.streamIndex}`);
+    const selectedScanMaps = selectedStreams.map((s) => `0:${s.streamIndex}`);
 
     if (!needsAction) {
       note(pc.green(t('checkPerfect')), t('readyToUse'));
@@ -310,12 +322,12 @@ export async function checkCommand(args: string[]) {
 
     if (result.action === 'select_streams') {
       const { groups, initialValues } = buildGroupedOptions(probeData, selectedStreams);
-      selectedStreams = onCancel(await groupMultiselect({
+      selectedStreams = onCancel(await groupMultiselect<SelectedStream>({
         message: t('checkSelectKeep'),
         options: groups,
         required: true,
         initialValues: initialValues,
-      })) as any[];
+      }));
       
       selectedStreams = await editTagsMenu(selectedStreams, probeData, undefined, true);
       

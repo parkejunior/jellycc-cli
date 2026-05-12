@@ -4,8 +4,11 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { setLanguage, availableLanguages, t } from '../utils/i18n.ts';
+import type { FallbackRules } from '../types/config';
 
-import fallbackRules from '../config/fallback_rules.yaml';
+import fallbackRulesData from '../config/fallback_rules.yaml';
+
+const fallbackRules = fallbackRulesData as FallbackRules;
 
 const displayNames: Record<string, string> = {
   'pt-BR': '🇧🇷 Português (Brasil)',
