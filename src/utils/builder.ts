@@ -1,8 +1,45 @@
-import path from 'path';
-import { getDynamicVideoEncoder, getDynamicAudioEncoder } from './ffmpeg.ts';
-import { getRepairOutputPath, getRepairPostCmds, getRepairPreCmds, initRepair } from '../services/repair.ts';
-import type { FFprobeData, SelectedStream } from '../types/media';
+import {
+  buildCheckRepairAudioArgs,
+  buildCheckRepairVideoArgs,
+  buildMergeRepairAudioArgs,
+  buildMergeRepairSubtitleArgs,
+  buildMergeRepairVideoArgs,
+  getRepairOutputPath,
+  getRepairPostCmds,
+  getRepairPreCmds,
+  initRepair
+} from '../services/repair.ts';
+import { getDynamicVideoEncoder } from './ffmpeg.ts';
+import { getAudioArgs, getMetadataArgs, getSubtitleArgs, getVideoArgs } from './ffmpeg-args.ts';
 import type { FallbackRules } from '../types/config';
+import type { FFprobeData, SelectedStream } from '../types/media';
+import type { RepairCommandParts } from '../services/repair.ts';
+
+const getMergeSource = (
+  stream: SelectedStream,
+  pathA: string,
+  pathB: string,
+  infoA: FFprobeData,
+  infoB: FFprobeData
+) => {
+  const sourceFileIndex = stream.fileIndex ?? 0;
+
+  return {
+    fileIndex: sourceFileIndex,
+    path: sourceFileIndex === 1 ? pathB : pathA,
+    info: sourceFileIndex === 1 ? infoB : infoA
+  };
+};
+
+const normalizeMergeVideoCodec = (codec: string) => (codec === 'h264' ? 'h264_8bit' : codec);
+
+const getMergeVideoCodecArg = (selectedStreams: SelectedStream[], fallbackRules: FallbackRules) => {
+  const vStream = selectedStreams.find((stream) => stream.type === 'video');
+  if (!vStream) return '-c:v copy';
+
+  const isVideoCompatible = normalizeMergeVideoCodec(vStream.codec) === fallbackRules.video.target;
+  return isVideoCompatible ? '-c:v copy' : getDynamicVideoEncoder(fallbackRules.video.target);
+};
 
 export function buildCheckCommand(
   selectedStreams: SelectedStream[],
@@ -13,95 +50,83 @@ export function buildCheckCommand(
   outputPath: string,
   useRepairMode: boolean = false
 ) {
-  let codecArgs: string[] = [];
-  let mapArgs: string[] = [];
-  let metaArgs: string[] = [];
-  let vOutIdx = 0;
-  let aOutIdx = 0;
-  let sOutIdx = 0;
+  const mapArgs: string[] = [];
+  const codecArgs: string[] = [];
+  const metaArgs: string[] = [];
+  const repairParts: RepairCommandParts[] = [];
+  const extraInputs: string[] = [];
 
-  let preCmds: string[] = [];
-  let postCmds: string[] = [];
-  let extraInputs: string[] = [];
+  const tmpDir = useRepairMode ? initRepair(outputPath) : '';
   let currentExtraInputIdx = 1;
-
-  let tmpDir = '';
-  if (useRepairMode) {
-    tmpDir = initRepair(outputPath);
-    preCmds.push(...getRepairPreCmds([], tmpDir));
-    postCmds.push(...getRepairPostCmds(tmpDir));
-  }
+  let videoOutputIndex = 0;
+  let audioOutputIndex = 0;
+  let subtitleOutputIndex = 0;
 
   for (const stream of selectedStreams) {
     if (stream.type === 'video') {
       if (useRepairMode) {
-        // Máquina de Lavar de Vídeo para o Check
-        const cleanVideoPath = path.join(tmpDir, `temp_video_${vOutIdx}.mp4`);
-        preCmds.push(`ffmpeg -y -i "${videoPath}" -map 0:${stream.streamIndex} -c:v copy -threads 0 "${cleanVideoPath}"`);
-        extraInputs.push(`-i "${cleanVideoPath}"`);
+        const repairArgs = buildCheckRepairVideoArgs({
+          sourcePath: videoPath,
+          streamIndex: stream.streamIndex,
+          tmpDir,
+          outputIndex: videoOutputIndex,
+          inputIndex: currentExtraInputIdx
+        });
 
-        mapArgs.push(`-map ${currentExtraInputIdx}:0`);
+        repairParts.push(repairArgs);
+        extraInputs.push(repairArgs.extraInput);
+        mapArgs.push(repairArgs.mapArg);
         currentExtraInputIdx++;
       } else {
         mapArgs.push(`-map 0:${stream.streamIndex}`);
       }
 
-      if (isVideoCompatible) {
-        codecArgs.push(`-c:v:${vOutIdx} copy`);
-      } else {
-        codecArgs.push(getDynamicVideoEncoder(fallbackRules.video.target).replace('-c:v', `-c:v:${vOutIdx}`));
-      }
+      codecArgs.push(...getVideoArgs(stream, isVideoCompatible, fallbackRules, videoOutputIndex));
+      metaArgs.push(...getMetadataArgs(stream, 'v', videoOutputIndex));
+      videoOutputIndex++;
+      continue;
+    }
 
-      if (stream.language !== undefined) {
-        metaArgs.push(`-metadata:s:v:${vOutIdx} language="${stream.language}"`);
-        metaArgs.push(`-metadata:s:v:${vOutIdx} title="${stream.title}"`);
-      }
-      vOutIdx++;
-    } else if (stream.type === 'audio') {
-      if (!useRepairMode && fallbackRules.audio.acceptable.includes(stream.codec)) {
+    if (stream.type === 'audio') {
+      if (useRepairMode) {
+        const repairArgs = buildCheckRepairAudioArgs({
+          sourcePath: videoPath,
+          streamIndex: stream.streamIndex,
+          tmpDir,
+          outputIndex: audioOutputIndex,
+          inputIndex: currentExtraInputIdx
+        });
+
+        repairParts.push(repairArgs);
+        extraInputs.push(repairArgs.extraInput);
+        mapArgs.push(repairArgs.mapArg);
+        currentExtraInputIdx++;
+      } else {
         mapArgs.push(`-map 0:${stream.streamIndex}`);
-        codecArgs.push(`-c:a:${aOutIdx} copy`);
-      } else {
-        const target = fallbackRules.audio.acceptable.includes(stream.codec)
-          ? stream.codec
-          : (fallbackRules.audio.mappings[stream.codec] ?? fallbackRules.audio.mappings.default).target;
-        const fullStream = probeData.streams.find((st) => st.index === stream.streamIndex);
-        const encoderStr = getDynamicAudioEncoder(fullStream, target, aOutIdx);
-
-        if (useRepairMode) {
-          const wavPath = path.join(tmpDir, `temp_audio_${aOutIdx}.w64`);
-          preCmds.push(`ffmpeg -y -i "${videoPath}" -map 0:${stream.streamIndex} -c:a pcm_s16le -threads 0 "${wavPath}"`);
-          extraInputs.push(`-i "${wavPath}"`);
-
-          mapArgs.push(`-map ${currentExtraInputIdx}:0`);
-          currentExtraInputIdx++;
-
-          codecArgs.push(encoderStr);
-        } else {
-          mapArgs.push(`-map 0:${stream.streamIndex}`);
-          codecArgs.push(encoderStr);
-        }
       }
 
-      if (stream.language !== undefined) {
-        metaArgs.push(`-metadata:s:a:${aOutIdx} language="${stream.language}"`);
-        metaArgs.push(`-metadata:s:a:${aOutIdx} title="${stream.title}"`);
-      }
-      aOutIdx++;
-    } else if (stream.type === 'subtitle') {
+      codecArgs.push(
+        ...getAudioArgs(stream, probeData, fallbackRules, audioOutputIndex, {
+          forceTranscode: useRepairMode
+        })
+      );
+      metaArgs.push(...getMetadataArgs(stream, 'a', audioOutputIndex));
+      audioOutputIndex++;
+      continue;
+    }
+
+    if (stream.type === 'subtitle') {
       mapArgs.push(`-map 0:${stream.streamIndex}`);
-      codecArgs.push(`-c:s:${sOutIdx} copy`);
-
-      if (stream.language !== undefined) {
-        metaArgs.push(`-metadata:s:s:${sOutIdx} language="${stream.language}"`);
-        metaArgs.push(`-metadata:s:s:${sOutIdx} title="${stream.title}"`);
-      }
-      sOutIdx++;
+      codecArgs.push(...getSubtitleArgs(stream, subtitleOutputIndex));
+      metaArgs.push(...getMetadataArgs(stream, 's', subtitleOutputIndex));
+      subtitleOutputIndex++;
     }
   }
 
-  const extraInputsStr = extraInputs.length > 0 ? extraInputs.join(' ') + ' ' : '';
-  const metaStr = metaArgs.length > 0 ? metaArgs.join(' ') + ' ' : '';
+  const preCmds = useRepairMode ? getRepairPreCmds(repairParts, tmpDir) : [];
+  const postCmds = useRepairMode ? getRepairPostCmds(tmpDir) : [];
+  const extraInputsStr = extraInputs.length > 0 ? `${extraInputs.join(' ')} ` : '';
+  const metaStr = metaArgs.length > 0 ? `${metaArgs.join(' ')} ` : '';
   const finalPath = useRepairMode ? getRepairOutputPath(outputPath) : outputPath;
 
   const mainCmd = `ffmpeg -y -fflags +genpts -i "${videoPath}" ${extraInputsStr}${mapArgs.join(' ')} ${codecArgs.join(' ')} ${metaStr}-max_muxing_queue_size 99999 -metadata encoded_by="JellyCC" -threads 0 "${finalPath}"`;
@@ -125,174 +150,119 @@ export function buildMergeCommand(
   applyShortest: boolean = false,
   useRepairMode: boolean = false
 ) {
-  let mapArgs: string[] = [];
-  let vCodecArg = '-c:v copy';
-  let aCodecArgs: string[] = [];
-  let metaArgs: string[] = [];
+  const mapArgs: string[] = [];
+  const aCodecArgs: string[] = [];
+  const metaArgs: string[] = [];
   const sCodecArgs: string[] = [];
+  const repairParts: RepairCommandParts[] = [];
+  const extraInputs: string[] = [];
 
-  let offsetA = '';
-  let offsetB = '';
-  if (delayMs > 0) offsetB = `-itsoffset ${delayMs / 1000} `;
-  else if (delayMs < 0) offsetA = `-itsoffset ${Math.abs(delayMs) / 1000} `;
+  const tmpDir = useRepairMode ? initRepair(outputPath) : '';
+  const vCodecArg = getMergeVideoCodecArg(selectedStreams, fallbackRules);
+  const offsetA = delayMs < 0 ? `-itsoffset ${Math.abs(delayMs) / 1000} ` : '';
+  const offsetB = delayMs > 0 ? `-itsoffset ${delayMs / 1000} ` : '';
 
-  const hasVideo = selectedStreams.some((s) => s.type === 'video');
-
-  if (hasVideo) {
-    const vStream = selectedStreams.find((s) => s.type === 'video');
-    if (vStream) {
-      let codecName = vStream.codec;
-      if (codecName === 'h264') codecName = 'h264_8bit';
-      if (codecName !== fallbackRules.video.target) {
-        vCodecArg = getDynamicVideoEncoder(fallbackRules.video.target);
-      }
-    }
-  }
-
-  let preCmds: string[] = [];
-  let postCmds: string[] = [];
-  let extraInputs: string[] = [];
   let currentExtraInputIdx = 2;
-
-  let tmpDir = '';
-  if (useRepairMode) {
-    tmpDir = initRepair(outputPath);
-    preCmds.push(...getRepairPreCmds([], tmpDir));
-    postCmds.push(...getRepairPostCmds(tmpDir));
-  }
-
   let audioOutputIndex = 0;
   let videoOutputIndex = 0;
   let subtitleOutputIndex = 0;
 
   for (const stream of selectedStreams) {
+    const source = getMergeSource(stream, pathA, pathB, infoA, infoB);
+
     if (stream.type === 'audio') {
-      const applyRepairToThisStream = useRepairMode;
-
-      if (!applyRepairToThisStream && fallbackRules.audio.acceptable.includes(stream.codec)) {
-        aCodecArgs.push(`-c:a:${audioOutputIndex} copy`);
-        mapArgs.push(`-map ${stream.fileIndex}:${stream.streamIndex}`);
-      } else {
-        const target = fallbackRules.audio.acceptable.includes(stream.codec)
-          ? stream.codec
-          : (fallbackRules.audio.mappings[stream.codec] ?? fallbackRules.audio.mappings.default).target;
-        const sourceInfo = stream.fileIndex === 0 ? infoA : infoB;
-        const fullStream = sourceInfo.streams.find((st) => st.index === stream.streamIndex);
-        const encoderStr = getDynamicAudioEncoder(fullStream, target, audioOutputIndex);
-
-        if (applyRepairToThisStream) {
-          const wavPath = path.join(tmpDir, `temp_audio_${audioOutputIndex}.w64`);
-          const sourcePath = stream.fileIndex === 0 ? pathA : pathB;
-
-          preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -async 1 -c:a pcm_s16le -threads 0 "${wavPath}"`);
-
-          // 1. Delay Global (caso o utilizador tenha feito um shift estrutural no menu)
-          let userDelayMs = 0;
-          if (stream.fileIndex === 0 && delayMs < 0) userDelayMs = Math.abs(delayMs);
-          if (stream.fileIndex === 1 && delayMs > 0) userDelayMs = delayMs;
-
-          // 2. O VERDADEIRO SMART: Lê o atraso nativo (PTS) que se perdeu no .w64
-          let ptsDelayMs = 0;
-          if (fullStream && fullStream.start_time) {
-            ptsDelayMs = Math.round(parseFloat(fullStream.start_time) * 1000);
-          }
-
-          // 3. Soma os dois e aplica o offset APENAS para esta faixa de áudio
-          const totalWavDelayMs = userDelayMs + ptsDelayMs;
-
-          let wavOffsetStr = '';
-          if (totalWavDelayMs > 0) {
-            wavOffsetStr = `-itsoffset ${totalWavDelayMs / 1000} `;
-          }
-
-          extraInputs.push(`${wavOffsetStr}-i "${wavPath}"`);
-
-          mapArgs.push(`-map ${currentExtraInputIdx}:0`);
-          currentExtraInputIdx++;
-
-          aCodecArgs.push(encoderStr);
-        } else {
-          mapArgs.push(`-map ${stream.fileIndex}:${stream.streamIndex}`);
-          aCodecArgs.push(encoderStr);
-        }
-      }
-
-      if (stream.language !== undefined) {
-        metaArgs.push(`-metadata:s:a:${audioOutputIndex} language="${stream.language}"`);
-        metaArgs.push(`-metadata:s:a:${audioOutputIndex} title="${stream.title}"`);
-      }
-      audioOutputIndex++;
-    } else if (stream.type === 'video') {
       if (useRepairMode) {
-        // A Máquina de Lavar de Vídeo para o Merge (Conserta o Relógio Quebrado)
-        const cleanVideoPath = path.join(tmpDir, `temp_video_${videoOutputIndex}.mp4`);
-        const sourcePath = stream.fileIndex === 0 ? pathA : pathB;
+        const repairArgs = buildMergeRepairAudioArgs({
+          sourcePath: source.path,
+          streamIndex: stream.streamIndex,
+          tmpDir,
+          outputIndex: audioOutputIndex,
+          inputIndex: currentExtraInputIdx,
+          sourceFileIndex: source.fileIndex,
+          delayMs,
+          fullStream: source.info.streams.find((st) => st.index === stream.streamIndex)
+        });
 
-        preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -c:v copy -threads 0 "${cleanVideoPath}"`);
-
-        let currentOffset = '';
-        if (stream.fileIndex === 0) currentOffset = offsetA;
-        if (stream.fileIndex === 1) currentOffset = offsetB;
-
-        extraInputs.push(`${currentOffset}-i "${cleanVideoPath}"`);
-        mapArgs.push(`-map ${currentExtraInputIdx}:0`);
+        repairParts.push(repairArgs);
+        extraInputs.push(repairArgs.extraInput);
+        mapArgs.push(repairArgs.mapArg);
         currentExtraInputIdx++;
       } else {
-        mapArgs.push(`-map ${stream.fileIndex}:${stream.streamIndex}`);
+        mapArgs.push(`-map ${source.fileIndex}:${stream.streamIndex}`);
       }
 
-      if (stream.language !== undefined) {
-        metaArgs.push(`-metadata:s:v:${videoOutputIndex} language="${stream.language}"`);
-        metaArgs.push(`-metadata:s:v:${videoOutputIndex} title="${stream.title}"`);
+      aCodecArgs.push(
+        ...getAudioArgs(stream, source.info, fallbackRules, audioOutputIndex, {
+          forceTranscode: useRepairMode
+        })
+      );
+      metaArgs.push(...getMetadataArgs(stream, 'a', audioOutputIndex));
+      audioOutputIndex++;
+      continue;
+    }
+
+    if (stream.type === 'video') {
+      if (useRepairMode) {
+        const repairArgs = buildMergeRepairVideoArgs({
+          sourcePath: source.path,
+          streamIndex: stream.streamIndex,
+          tmpDir,
+          outputIndex: videoOutputIndex,
+          inputIndex: currentExtraInputIdx,
+          sourceFileIndex: source.fileIndex,
+          delayMs
+        });
+
+        repairParts.push(repairArgs);
+        extraInputs.push(repairArgs.extraInput);
+        mapArgs.push(repairArgs.mapArg);
+        currentExtraInputIdx++;
+      } else {
+        mapArgs.push(`-map ${source.fileIndex}:${stream.streamIndex}`);
       }
+
+      metaArgs.push(...getMetadataArgs(stream, 'v', videoOutputIndex));
       videoOutputIndex++;
-    } else if (stream.type === 'subtitle') {
+      continue;
+    }
+
+    if (stream.type === 'subtitle') {
       if (useRepairMode && (stream.codec === 'subrip' || stream.codec === 'ass')) {
-        // A Máquina de Lavar de Legendas (Desvincula do MKV para o offset funcionar)
-        const ext = stream.codec === 'subrip' ? 'srt' : 'ass';
-        const cleanSubPath = path.join(tmpDir, `temp_sub_${subtitleOutputIndex}.${ext}`);
-        const sourcePath = stream.fileIndex === 0 ? pathA : pathB;
+        const repairArgs = buildMergeRepairSubtitleArgs({
+          sourcePath: source.path,
+          streamIndex: stream.streamIndex,
+          tmpDir,
+          outputIndex: subtitleOutputIndex,
+          inputIndex: currentExtraInputIdx,
+          sourceFileIndex: source.fileIndex,
+          delayMs,
+          codec: stream.codec
+        });
 
-        preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -threads 0 "${cleanSubPath}"`);
-
-        let currentOffset = '';
-        if (stream.fileIndex === 0) currentOffset = offsetA;
-        if (stream.fileIndex === 1) currentOffset = offsetB;
-
-        extraInputs.push(`${currentOffset}-i "${cleanSubPath}"`);
-        mapArgs.push(`-map ${currentExtraInputIdx}:0`);
+        repairParts.push(repairArgs);
+        extraInputs.push(repairArgs.extraInput);
+        mapArgs.push(repairArgs.mapArg);
         currentExtraInputIdx++;
-
-        sCodecArgs.push(`-c:s:${subtitleOutputIndex} ${ext}`);
       } else {
-        mapArgs.push(`-map ${stream.fileIndex}:${stream.streamIndex}`);
-
-        // Re-encode apenas para texto, copy para imagem
-        if (stream.codec === 'subrip') {
-          sCodecArgs.push(`-c:s:${subtitleOutputIndex} srt`);
-        } else if (stream.codec === 'ass') {
-          sCodecArgs.push(`-c:s:${subtitleOutputIndex} ass`);
-        } else {
-          sCodecArgs.push(`-c:s:${subtitleOutputIndex} copy`);
-        }
+        mapArgs.push(`-map ${source.fileIndex}:${stream.streamIndex}`);
       }
 
-      if (stream.language !== undefined) {
-        metaArgs.push(`-metadata:s:s:${subtitleOutputIndex} language="${stream.language}"`);
-        metaArgs.push(`-metadata:s:s:${subtitleOutputIndex} title="${stream.title}"`);
-      }
+      sCodecArgs.push(...getSubtitleArgs(stream, subtitleOutputIndex));
+      metaArgs.push(...getMetadataArgs(stream, 's', subtitleOutputIndex));
       subtitleOutputIndex++;
     }
   }
 
-  const aCodecArg = aCodecArgs.length > 0 ? aCodecArgs.join(' ') : '-c:a copy';
+  const preCmds = useRepairMode ? getRepairPreCmds(repairParts, tmpDir) : [];
+  const postCmds = useRepairMode ? getRepairPostCmds(tmpDir) : [];
+  const aCodecArgStr = aCodecArgs.length > 0 ? aCodecArgs.join(' ') : '-c:a copy';
   const sCodecArgStr = sCodecArgs.length > 0 ? sCodecArgs.join(' ') : '-c:s copy';
-  const shortestArg = (applyShortest && !useRepairMode) ? '-shortest ' : '';
-  const extraInputsStr = extraInputs.length > 0 ? extraInputs.join(' ') + ' ' : '';
-  const metaStr = metaArgs.length > 0 ? metaArgs.join(' ') + ' ' : '';
+  const shortestArg = applyShortest && !useRepairMode ? '-shortest ' : '';
+  const extraInputsStr = extraInputs.length > 0 ? `${extraInputs.join(' ')} ` : '';
+  const metaStr = metaArgs.length > 0 ? `${metaArgs.join(' ')} ` : '';
   const finalPath = useRepairMode ? getRepairOutputPath(outputPath) : outputPath;
 
-  const mainCmd = `ffmpeg -y -fflags +genpts ${offsetA}-i "${pathA}" -fflags +genpts ${offsetB}-i "${pathB}" ${extraInputsStr}${mapArgs.join(' ')} ${vCodecArg} ${aCodecArg} ${sCodecArgStr} ${shortestArg}${metaStr}-max_muxing_queue_size 99999 -metadata encoded_by="JellyCC" -threads 0 "${finalPath}"`;
+  const mainCmd = `ffmpeg -y -fflags +genpts ${offsetA}-i "${pathA}" -fflags +genpts ${offsetB}-i "${pathB}" ${extraInputsStr}${mapArgs.join(' ')} ${vCodecArg} ${aCodecArgStr} ${sCodecArgStr} ${shortestArg}${metaStr}-max_muxing_queue_size 99999 -metadata encoded_by="JellyCC" -threads 0 "${finalPath}"`;
 
   if (useRepairMode && preCmds.length > 0) {
     return `${preCmds.join(' && ')} && ${mainCmd} && ${postCmds.join(' && ')}`;
