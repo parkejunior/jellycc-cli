@@ -124,5 +124,3 @@ export function buildGroupedOptions(params: BuildStreamOptionsParams): BuildStre
 
   return { groups, initialValues };
 }
-
-export const buildStreamOptions = buildGroupedOptions;

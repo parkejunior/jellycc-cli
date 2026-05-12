@@ -24,8 +24,6 @@ export function getVideoArgs(
   return [withOutputIndex(getDynamicVideoEncoder(rules.video.target), 'v', outputIndex)];
 }
 
-export const buildVideoArgs = getVideoArgs;
-
 export function getAudioArgs(
   stream: SelectedStream,
   info: FFprobeData,
@@ -46,8 +44,6 @@ export function getAudioArgs(
   return [getDynamicAudioEncoder(fullStream, target, outputIndex)];
 }
 
-export const buildAudioArgs = getAudioArgs;
-
 export function getSubtitleArgs(
   stream: SelectedStream,
   outputIndex: number = 0
@@ -56,8 +52,6 @@ export function getSubtitleArgs(
   if (stream.codec === 'ass') return [`-c:s:${outputIndex} ass`];
   return [`-c:s:${outputIndex} copy`];
 }
-
-export const buildSubtitleArgs = getSubtitleArgs;
 
 export function getMetadataArgs(
   stream: Pick<SelectedStream, 'language' | 'title'>,
@@ -71,5 +65,3 @@ export function getMetadataArgs(
     `-metadata:s:${type}:${index} title="${stream.title ?? ''}"`
   ];
 }
-
-export const buildMetadataArgs = getMetadataArgs;

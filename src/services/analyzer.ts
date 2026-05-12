@@ -262,7 +262,7 @@ const analyzeSelection = (
   };
 };
 
-export function mapMetadata(probeData: FFprobeData, videoPath?: string): MediaMetadata {
+function mapMetadata(probeData: FFprobeData, videoPath?: string): MediaMetadata {
   const durationSec = probeData.format?.duration ? Number.parseFloat(probeData.format.duration) : 0;
   const videoStreams = probeData.streams.filter((stream) => stream.codec_type === 'video' && !isAttachedPic(stream));
   const attachedPictures = probeData.streams.filter((stream) => stream.codec_type === 'video' && isAttachedPic(stream));
@@ -283,14 +283,6 @@ export function mapMetadata(probeData: FFprobeData, videoPath?: string): MediaMe
     subtitleStreams,
     attachedPictures
   };
-}
-
-export function analyzeCompatibility(
-  probeData: FFprobeData,
-  supportMatrix: JellyfinSupportMatrix,
-  videoPath?: string
-): CompatibilityAnalysis {
-  return buildCompatibilityAnalysis(mapMetadata(probeData, videoPath), supportMatrix);
 }
 
 export function getDiagnostic(
