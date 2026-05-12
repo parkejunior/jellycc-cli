@@ -1,4 +1,5 @@
 import { t } from './i18n.ts';
+import { isImageSubtitle } from './mediaUtils.ts';
 import type { MediaStream } from '../types/media';
 
 export const formatFps = (fpsStr: string | undefined) => {
@@ -63,23 +64,15 @@ export const padLabel = (text: string, len: number = 12) => {
   return text.length > len ? text.substring(0, len - 3) + '...' : text.padEnd(len, ' ');
 };
 
-export const isImageSubtitle = (codecName: string | undefined): boolean => {
-  if (!codecName) return false;
-  const lower = codecName.toLowerCase();
-  return lower === 'hdmv_pgs_subtitle' || lower === 'dvd_subtitle' || lower === 'vobsub';
-};
-
 export const formatSubtitleCodec = (codecName: string | undefined): string => {
   if (!codecName) return t('unknown');
   const lower = codecName.toLowerCase();
-  if (lower === 'hdmv_pgs_subtitle') return 'PGS';
+  if (isImageSubtitle(codecName)) {
+    if (lower === 'dvd_subtitle' || lower === 'vobsub') return 'VobSub';
+    return 'PGS';
+  }
   if (lower === 'subrip') return 'SRT';
-  if (lower === 'dvd_subtitle' || lower === 'vobsub') return 'VobSub';
   return codecName.toUpperCase();
-};
-
-export const isAttachedPic = (st: Pick<MediaStream, 'disposition' | 'codec_name'>) => {
-  return st.disposition?.attached_pic === 1 || ['mjpeg', 'png', 'bmp'].includes(st.codec_name);
 };
 
 export const calculateTotalFrames = (

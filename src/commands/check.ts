@@ -7,7 +7,8 @@ import path from 'path';
 import { onCancel, sanitizePath, handleExecutionMenu, editTagsMenu } from '../utils/ui.ts';
 import { runQuickScan, getMediaInfo } from '../utils/ffprobe.ts';
 import { buildCheckCommand } from '../utils/builder.ts';
-import { getDiagnostic, isGarbageStream } from '../services/analyzer.ts';
+import { getDiagnostic } from '../services/analyzer.ts';
+import { filterGarbageStreams } from '../utils/mediaUtils.ts';
 import { renderMatrix, renderActionPlan } from '../views/checkView.ts';
 import { buildStreamOptions } from '../views/streamOptions.ts';
 import type { SelectedStream } from '../types/media';
@@ -66,11 +67,8 @@ export async function checkCommand(args: string[]) {
   selectedStreams = await editTagsMenu(selectedStreams, probeData, undefined, true);
 
   if (autoClean) {
-    selectedStreams = selectedStreams.filter((stream) => {
-      const fullStream = probeData.streams.find((probeStream) => probeStream.index === stream.streamIndex);
-      if (!fullStream) return true;
-      return !isGarbageStream(fullStream);
-    });
+    const cleanIndices = new Set(filterGarbageStreams(probeData.streams).map((stream) => stream.index));
+    selectedStreams = selectedStreams.filter((stream) => cleanIndices.has(stream.streamIndex));
   }
 
   const dir = path.dirname(videoPath as string);

@@ -1,6 +1,7 @@
 import { t } from '../utils/i18n.ts';
 import pc from 'picocolors';
-import { formatFps, formatSubtitleCodec, isAttachedPic, isImageSubtitle, formatChannels } from '../utils/formatters.ts';
+import { formatFps, formatSubtitleCodec, formatChannels } from '../utils/formatters.ts';
+import { isAttachedPic, isImageSubtitle } from '../utils/mediaUtils.ts';
 import type { FFprobeData, GroupedStreamOptions, SelectedStream } from '../types/media';
 
 export interface StreamOptionSource {

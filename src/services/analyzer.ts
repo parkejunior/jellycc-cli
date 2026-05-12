@@ -1,5 +1,6 @@
 import path from 'path';
-import { calculateTotalFrames, isAttachedPic, isImageSubtitle } from '../utils/formatters.ts';
+import { calculateTotalFrames } from '../utils/formatters.ts';
+import { hasEmbeddedGarbage, isAttachedPic, isImageSubtitle } from '../utils/mediaUtils.ts';
 import type { FallbackRules, JellyfinSupportMatrix, SupportDecision } from '../types/config';
 import type { FFprobeData, MediaStream, SelectedStream } from '../types/media';
 
@@ -303,7 +304,7 @@ export function getDiagnostic(
   const compatibility = buildCompatibilityAnalysis(metadata, supportMatrix);
   const actionPlan = buildActionPlan(metadata, fallbackRules);
   const selection = analyzeSelection(probeData, fallbackRules, metadata, selectedStreams);
-  const hasGarbage = actionPlan.subtitles.some((stream) => stream.isImage) || actionPlan.extras.length > 0;
+  const hasGarbage = hasEmbeddedGarbage(probeData.streams);
 
   return {
     metadata,
@@ -330,8 +331,4 @@ export function getPreferredVideoSource(infoA: FFprobeData, infoB: FFprobeData):
   if (pixelsB === pixelsA && bitrateB > bitrateA) return 'B';
 
   return 'A';
-}
-
-export function isGarbageStream(stream: MediaStream): boolean {
-  return isAttachedPic(stream) || (stream.codec_type === 'subtitle' && isImageSubtitle(stream.codec_name));
 }
