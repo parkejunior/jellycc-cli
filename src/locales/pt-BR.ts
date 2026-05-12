@@ -65,6 +65,7 @@ export default {
   checkRemuxOnly: 'O arquivo requer apenas uma limpeza (Remux). Você descartou {0} faixa(s).',
   checkRemuxCmd: 'Comando de Limpeza Sugerido',
   checkTranscodeCmd: 'Comando FFmpeg Sugerido (Transcode + Limpeza)',
+  lossless: 'Sem perdas',
 
   // Comando: Merge
   mergePathA: 'Caminho do Arquivo A (Base/Referência):',
