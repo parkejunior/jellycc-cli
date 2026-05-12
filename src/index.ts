@@ -50,7 +50,7 @@ async function main() {
 
 void main().catch((error: unknown) => {
   if (error instanceof UserCancelError) {
-    cancel(pc.yellow(error.message || t('cancel')));
+    cancel(pc.red(error.message || t('cancel')));
     process.exit(0);
   }
 
