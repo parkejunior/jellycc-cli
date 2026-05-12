@@ -10,7 +10,7 @@ import { buildCheckCommand } from '../utils/builder.ts';
 import { getDiagnostic } from '../services/analyzer.ts';
 import { filterGarbageStreams } from '../utils/mediaUtils.ts';
 import { renderMatrix, renderActionPlan } from '../views/checkView.ts';
-import { buildStreamOptions } from '../views/streamOptions.ts';
+import { buildGroupedOptions } from '../views/streamOptions.ts';
 import type { SelectedStream } from '../types/media';
 import type { FallbackRules, JellyfinSupportMatrix } from '../types/config';
 
@@ -141,7 +141,7 @@ export async function checkCommand(args: string[]) {
     hasMediaErrors = result.hasErrors;
 
     if (result.action === 'select_streams') {
-      const { groups, initialValues } = buildStreamOptions({
+      const { groups, initialValues } = buildGroupedOptions({
         sources: [{ info: probeData }],
         currentSelected: selectedStreams,
         includeAttachedPictures: true,

@@ -11,7 +11,7 @@ import { calculateTotalFrames } from '../utils/formatters.ts';
 import { getPreferredVideoSource, getPrimaryVideoStream } from '../services/analyzer.ts';
 import { calculateDifferenceMs } from '../services/syncManager.ts';
 import { renderComparison, buildSyncOptions } from '../views/mergeView.ts';
-import { buildStreamOptions } from '../views/streamOptions.ts';
+import { buildGroupedOptions } from '../views/streamOptions.ts';
 import type { FFprobeData, SelectedStream } from '../types/media';
 import type { FallbackRules } from '../types/config';
 
@@ -55,7 +55,7 @@ export async function mergeCommand(args: string[]) {
 
   note(renderComparison(infoA, infoB), t('mergeComparison'));
 
-  let { groups, initialValues } = buildStreamOptions({
+  let { groups, initialValues } = buildGroupedOptions({
     sources: [
       { info: infoA, fileIndex: 0, label: 'A' },
       { info: infoB, fileIndex: 1, label: 'B' }
@@ -185,7 +185,7 @@ export async function mergeCommand(args: string[]) {
     hasMediaErrors = result.hasErrors;
 
     if (result.action === 'select_streams') {
-      const refreshedOptions = buildStreamOptions({
+      const refreshedOptions = buildGroupedOptions({
         sources: [
           { info: infoA, fileIndex: 0, label: 'A' },
           { info: infoB, fileIndex: 1, label: 'B' }

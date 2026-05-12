@@ -59,7 +59,7 @@ const formatSubtitleLabel = (stream: FFprobeData['streams'][number]) => {
   return `[${formatSubtitleCodec(stream.codec_name)}] (${lang})${title}${status}`;
 };
 
-export function buildStreamOptions(params: BuildStreamOptionsParams): BuildStreamOptionsResult {
+export function buildGroupedOptions(params: BuildStreamOptionsParams): BuildStreamOptionsResult {
   const groupVideo = t('groupVideo');
   const groupAudio = t('groupAudio');
   const groupSubs = t('groupSubs');
@@ -124,3 +124,5 @@ export function buildStreamOptions(params: BuildStreamOptionsParams): BuildStrea
 
   return { groups, initialValues };
 }
+
+export const buildStreamOptions = buildGroupedOptions;
