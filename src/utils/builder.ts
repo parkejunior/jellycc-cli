@@ -42,7 +42,7 @@ export function buildCheckCommand(selectedStreams: any[], probeData: any, fallba
       if (isVideoCompatible) {
         codecArgs.push(`-c:v:${vOutIdx} copy`);
       } else {
-        codecArgs.push(getDynamicVideoEncoder().replace('-c:v', `-c:v:${vOutIdx}`));
+        codecArgs.push(getDynamicVideoEncoder(fallbackRules.video.target).replace('-c:v', `-c:v:${vOutIdx}`));
       }
       
       if (stream.language !== undefined) {
@@ -123,7 +123,7 @@ export function buildMergeCommand(selectedStreams: any[], infoA: any, infoB: any
     let codecName = vStream.codec;
     if (codecName === 'h264') codecName = 'h264_8bit'; 
     if (codecName !== fallbackRules.video.target) {
-      vCodecArg = getDynamicVideoEncoder();
+      vCodecArg = getDynamicVideoEncoder(fallbackRules.video.target);
     }
   }
 

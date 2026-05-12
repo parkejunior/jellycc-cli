@@ -9,7 +9,11 @@ export function parseFfmpegTime(timeStr: string) {
   return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
 }
 
-export function getDynamicVideoEncoder() {
+export function getDynamicVideoEncoder(targetCodec: string = 'h264_8bit') {
+  if (targetCodec === 'hevc_10bit') return '-c:v libx265 -preset slow -crf 20 -pix_fmt yuv420p10le';
+  if (targetCodec === 'hevc_8bit') return '-c:v libx265 -preset slow -crf 20 -pix_fmt yuv420p';
+  if (targetCodec === 'h264_10bit') return '-c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p10le';
+
   return '-c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p';
 }
 
