@@ -3,13 +3,14 @@ import pc from 'picocolors';
 import { runConversion, runDeepScan } from './ffmpeg.ts';
 import { t } from './i18n.ts';
 import path from 'path';
+import type { FFprobeData, SelectedStream } from '../types/media';
 
-export function onCancel(value: any) {
+export function onCancel<T>(value: T): Exclude<T, symbol> {
   if (isCancel(value)) {
     cancel(t('cancel'));
     process.exit(0);
   }
-  return value;
+  return value as Exclude<T, symbol>;
 }
 
 export const sanitizePath = (p: string | undefined | null) => p ? p.trim().replace(/^['"]|['"]$/g, '') : p;
@@ -33,13 +34,13 @@ export async function handleExecutionMenu(options: {
   allowSyncAdjustment?: boolean;
   allowMyopicScan?: boolean;     // <-- A CHAVE NOVA AQUI
 }): Promise<{ action: string, deepScanCompleted: boolean, hasErrors: boolean }> {
-  let action;
+  let action = 'exit';
   let keepMenuOpen = true;
   let dsCompleted = options.deepScanCompleted || false;
   let fileHasErrors = options.hasErrors || false;
 
   while (keepMenuOpen) {
-    const menuOptions = [];
+    const menuOptions: Array<{ label: string; value: string }> = [];
 
     if (!options.isPerfect) {
       if (options.isJustRemux) {
@@ -99,7 +100,7 @@ export async function handleExecutionMenu(options: {
 
   const runActions = ['run', 'run_and_scan', 'run_repair', 'run_repair_and_scan'];
   
-  if (action && runActions.includes(action as string)) {
+  if (action && runActions.includes(action)) {
     try {
       const isRepair = action === 'run_repair' || action === 'run_repair_and_scan';
       const cmdToRun = isRepair ? options.ffmpegRepairCmd! : options.ffmpegCmd;
@@ -134,18 +135,23 @@ export async function handleExecutionMenu(options: {
   return { action: 'exit', deepScanCompleted: dsCompleted, hasErrors: fileHasErrors };
 }
 
-export async function editTagsMenu(selectedStreams: any[], infoA: any, infoB?: any, autoPromptUnd: boolean = false) {
+export async function editTagsMenu(
+  selectedStreams: SelectedStream[],
+  infoA: FFprobeData,
+  infoB?: FFprobeData,
+  autoPromptUnd: boolean = false
+): Promise<SelectedStream[]> {
   // 1. Preenche as tags vazias com os dados originais silenciosamente
   selectedStreams.forEach(s => {
     const sourceInfo = (s.fileIndex === 1 && infoB) ? infoB : infoA;
-    const fullStream = sourceInfo.streams.find((st: any) => st.index === s.streamIndex);
+    const fullStream = sourceInfo.streams.find((st) => st.index === s.streamIndex);
     if (s.language === undefined) s.language = fullStream?.tags?.language || 'und';
     if (s.title === undefined) s.title = fullStream?.tags?.title || '';
   });
 
   // 2. Se for modo automático, verifica se tem lixo (UND) apenas em Áudios e Legendas!
   if (autoPromptUnd) {
-    const hasUnd = selectedStreams.some(s => s.language.toLowerCase() === 'und' && s.type !== 'video');
+    const hasUnd = selectedStreams.some(s => (s.language ?? 'und').toLowerCase() === 'und' && s.type !== 'video');
     
     if (!hasUnd) return selectedStreams; // Vídeos UND são ignorados e passam reto
 
@@ -163,7 +169,7 @@ export async function editTagsMenu(selectedStreams: any[], infoA: any, infoB?: a
       let typeLabel = s.type === 'subtitle' ? t('typeSub') : (s.type === 'audio' ? t('typeAudio') : t('typeVideo'));
       let label = `[${typeLabel}] ${s.codec.toUpperCase()}`;
       if (s.fileIndex !== undefined) label += t('fileArq', s.fileIndex === 0 ? 'A' : 'B');
-      label += `${t('tagLang')}${s.language.toUpperCase()}`;
+      label += `${t('tagLang')}${(s.language ?? 'und').toUpperCase()}`;
       if (s.title) label += `${t('tagTitle')}"${s.title}"`;
 
       return { label, value: index };
@@ -174,7 +180,7 @@ export async function editTagsMenu(selectedStreams: any[], infoA: any, infoB?: a
     const pickedIdx = onCancel(await select({
       message: t('tagEditSelect'),
       options
-    })) as number;
+    }));
 
     if (pickedIdx === -1) {
       looping = false;
@@ -182,6 +188,7 @@ export async function editTagsMenu(selectedStreams: any[], infoA: any, infoB?: a
     }
 
     const st = selectedStreams[pickedIdx];
+    if (!st) continue;
 
     st.language = onCancel(await text({
       message: t('tagEditLang'),

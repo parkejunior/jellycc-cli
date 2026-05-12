@@ -1,4 +1,5 @@
 import { t } from './i18n.ts';
+import type { MediaStream } from '../types/media';
 
 export const formatFps = (fpsStr: string | undefined) => {
   if (!fpsStr) return '?? fps';
@@ -17,7 +18,7 @@ export const formatBitrate = (bps: string | number | undefined) => {
   return Math.round(bpsNum / 1000) + ' kbps';
 };
 
-export const getBitDepth = (stream: any) => {
+export const getBitDepth = (stream: Pick<MediaStream, 'pix_fmt'> | undefined) => {
   if (!stream || !stream.pix_fmt) return '8-bit';
   if (stream.pix_fmt.includes('10')) return '10-bit';
   if (stream.pix_fmt.includes('12')) return '12-bit';
@@ -77,11 +78,14 @@ export const formatSubtitleCodec = (codecName: string | undefined): string => {
   return codecName.toUpperCase();
 };
 
-export const isAttachedPic = (st: any) => {
+export const isAttachedPic = (st: Pick<MediaStream, 'disposition' | 'codec_name'>) => {
   return st.disposition?.attached_pic === 1 || ['mjpeg', 'png', 'bmp'].includes(st.codec_name);
 };
 
-export const calculateTotalFrames = (videoStream: any, totalDurationSec: number): number => {
+export const calculateTotalFrames = (
+  videoStream: Pick<MediaStream, 'r_frame_rate' | 'avg_frame_rate'> | undefined,
+  totalDurationSec: number
+): number => {
   if (videoStream && totalDurationSec > 0) {
     const fpsStr = videoStream.r_frame_rate || videoStream.avg_frame_rate;
     if (fpsStr) {

@@ -2,11 +2,12 @@ import { spawn } from 'child_process';
 import { spinner } from '@clack/prompts';
 import pc from 'picocolors';
 import { t } from './i18n.ts';
+import type { MediaStream } from '../types/media';
 
 export function parseFfmpegTime(timeStr: string) {
   const parts = timeStr.split(':');
   if (parts.length !== 3) return 0;
-  return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+  return Number(parts[0] ?? 0) * 3600 + Number(parts[1] ?? 0) * 60 + Number(parts[2] ?? 0);
 }
 
 export function getDynamicVideoEncoder(targetCodec: string = 'h264_8bit') {
@@ -17,9 +18,13 @@ export function getDynamicVideoEncoder(targetCodec: string = 'h264_8bit') {
   return '-c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p';
 }
 
-export function getDynamicAudioEncoder(stream: any, targetCodec: string, outputIndex: number = 0) {
+export function getDynamicAudioEncoder(
+  stream: Pick<MediaStream, 'channels' | 'bit_rate'> | undefined,
+  targetCodec: string,
+  outputIndex: number = 0
+) {
   const channels = stream?.channels || 2;
-  const sourceBitrate = stream?.bit_rate ? Math.round(parseInt(stream.bit_rate) / 1000) : Infinity;
+  const sourceBitrate = stream?.bit_rate ? Math.round(Number.parseInt(stream.bit_rate, 10) / 1000) : Infinity;
   
   if (targetCodec === 'flac') {
     return `-c:a:${outputIndex} flac`;
@@ -61,8 +66,9 @@ export async function runDeepScan(inputs: string[], maps: string[], totalDuratio
       stderrBuffer += data.toString();
 
       const timeMatch = stderrBuffer.match(/time=(\d{2}:\d{2}:\d{2}\.\d{2})/);
-      if (timeMatch && totalDurationSec > 0) {
-        const currentTime = parseFfmpegTime(timeMatch[1]);
+      const matchTime = timeMatch?.[1];
+      if (matchTime && totalDurationSec > 0) {
+        const currentTime = parseFfmpegTime(matchTime);
         let percent = Math.round((currentTime / totalDurationSec) * 100);
         if (percent > 100) percent = 100;
         
@@ -142,11 +148,14 @@ export async function runConversion(ffmpegCmd: string, totalDurationSec: number,
 
         let percent = -1;
 
-        if (timeMatch && totalDurationSec > 0) {
-          const currentTime = parseFfmpegTime(timeMatch[1]);
+        const matchTime = timeMatch?.[1];
+        const matchFrame = frameMatch?.[1];
+
+        if (matchTime && totalDurationSec > 0) {
+          const currentTime = parseFfmpegTime(matchTime);
           percent = Math.round((currentTime / totalDurationSec) * 100);
-        } else if (frameMatch && totalFrames > 0) {
-          const currentFrame = parseInt(frameMatch[1], 10);
+        } else if (matchFrame && totalFrames > 0) {
+          const currentFrame = Number.parseInt(matchFrame, 10);
           percent = Math.round((currentFrame / totalFrames) * 100);
         }
 
@@ -172,7 +181,7 @@ export async function runConversion(ffmpegCmd: string, totalDurationSec: number,
       }
     });
 
-    ff.on('error', (err) => {
+    ff.on('error', (err: Error) => {
       convSpinner.stop(pc.red(t('convStartFail', err.message)));
       reject(err);
     });
