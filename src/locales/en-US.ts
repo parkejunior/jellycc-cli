@@ -111,10 +111,17 @@ export default {
   langChanged: '✔ Language changed successfully!',
   langError: '✖ Error saving language configuration.',
 
+  // Command: Config
+  configMenuLang: '🌐 Change Language',
+  configMenuInit: '⚙️  Generate rules template (rules.example.json)',
+  configTemplateGenerated: '✔ Template generated at:\n  {0}\n\n💡 Rename to "rules.json" to use it.',
+  langChangedTo: '✔ Language changed to:',
+
   // Command Titles
   titleCheck: 'Media Analysis and Cleanup',
   titleMerge: 'Media Merge',
   titleLang: 'Language Configuration',
+  titleConfig: 'JellyCC Settings',
 
   // Tags (Language Editing)
   tagEditUndDetected: '⚠️ One or more tracks with unknown language (UND) detected. Do you want to edit tags now?',

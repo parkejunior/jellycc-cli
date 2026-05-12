@@ -9,8 +9,8 @@ import { runQuickScan, getMediaInfo } from '../utils/ffprobe.ts';
 import { buildCheckCommand } from '../utils/builder.ts';
 import { formatFps, formatBitrate, getBitDepth, formatSampleRate, formatChannels, padLabel, isImageSubtitle, formatSubtitleCodec, isAttachedPic, calculateTotalFrames } from '../utils/formatters.ts';
 
-import supportMatrix from '../../dist/matrix.json' with { type: 'json' };
-import fallbackRules from '../../dist/rules.json' with { type: 'json' };
+import supportMatrix from '../config/jellyfin_codec_support.yaml';
+import fallbackRules from '../config/fallback_rules.yaml';
 
 export async function checkCommand(args: string[]) {
   const deepScanFlag = args.includes('--deep-scan');
@@ -109,7 +109,10 @@ export async function checkCommand(args: string[]) {
     if (isVideoCompatible) {
       modLines.push(`  ${padLabel(t('checkCodec'))} ${pc.green(vCodecOriginal + ' ✔')}\n  ${padLabel(t('checkRes'))} ${pc.dim(vRes)}\n  ${padLabel(t('checkFps'))} ${pc.dim(vFps)}\n  ${padLabel(t('checkBitDepth'))} ${pc.dim(vDepth)}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(vBitrate)}`);
     } else {
-      modLines.push(`  ${padLabel(t('checkCodec'))} ${pc.dim(vCodecOriginal)} ➔ ${pc.yellow('H.264')}\n  ${padLabel(t('checkRes'))} ${pc.dim(vRes)}\n  ${padLabel(t('checkFps'))} ${pc.dim(vFps)}\n  ${padLabel(t('checkBitDepth'))} ${vDepth === '8-bit' ? pc.dim('8-bit') : `${pc.dim(vDepth)} ➔ ${pc.yellow('8-bit')}`}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(vBitrate)} ➔ ${pc.yellow(t('visuallyLossless'))}`);
+        const targetDepth = fallbackRules.video.target.includes('10bit') ? '10-bit' : '8-bit';
+        const targetName = fallbackRules.video.target.split('_')[0].toUpperCase();
+
+        modLines.push(`  ${padLabel(t('checkCodec'))} ${pc.dim(vCodecOriginal)} ➔ ${pc.yellow(targetName)}\n  ${padLabel(t('checkRes'))} ${pc.dim(vRes)}\n  ${padLabel(t('checkFps'))} ${pc.dim(vFps)}\n  ${padLabel(t('checkBitDepth'))} ${vDepth === targetDepth ? pc.dim(targetDepth) : `${pc.dim(vDepth)} ➔ ${pc.yellow(targetDepth)}`}\n  ${padLabel(t('checkBitrate'))} ${pc.dim(vBitrate)} ➔ ${pc.yellow(t('visuallyLossless'))}`);
     }
     modLines.push('');
   }
