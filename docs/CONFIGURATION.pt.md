@@ -23,15 +23,18 @@ jellycc config
 | `--init` | Gera um arquivo `rules.example.json` no diretório de configuração como ponto de partida para customização |
 | `--lang <código>` | Define o idioma diretamente sem abrir o menu interativo |
 
-```bash
-# Gerar o template de regras
-jellycc config --init
+Para gerar o template de regras:
 
-# Trocar idioma direto pela linha de comando
+```bash
+jellycc config --init
+```
+
+Para trocar idioma direto pela linha de comando:
+
+```bash
 jellycc config --lang en-US
 jellycc config --lang pt-BR
 ```
-
 
 ## `config.json`
 
@@ -52,15 +55,32 @@ Armazena as preferências do usuário. Gerenciado automaticamente pelo comando `
 
 ## `rules.json`
 
-Define os **alvos de conversão** do seu servidor. Este arquivo é **opcional** — sem ele, o JellyCC usa as regras padrão embutidas.
+Define os **alvos de conversão** do seu servidor. Este arquivo é **opcional** — sem ele, o JellyCC usa as regras padrão.
 
 Para criar o seu a partir do template:
 
 ```bash
 jellycc config --init
-# Um arquivo rules.example.json será criado em ~/.config/jellycc/
-# Renomeie-o para rules.json e edite conforme necessário
+```
+
+Um arquivo `rules.example.json` será criado em `~/.config/jellycc/`. Renomeie-o para `rules.json` e edite conforme necessário:
+
+```bash
 cp ~/.config/jellycc/rules.example.json ~/.config/jellycc/rules.json
+```
+
+### Sobrescrita Parcial
+
+Você **não precisa** manter o arquivo `rules.json` completo. Mantenha no arquivo **apenas** as chaves que você deseja alterar. Tudo o que for apagado herdará automaticamente o padrão.
+
+**Exemplo:** HEVC 10-bit e o restante padrão, seu `rules.json` deve ter apenas isso:
+
+```json
+{
+  "video": {
+    "target": "hevc_10bit"
+  }
+}
 ```
 
 ### Estrutura completa
@@ -110,7 +130,7 @@ Codec de vídeo alvo. Arquivos já nesse formato são copiados sem *transcode*.
 
 ### `audio.acceptable`
 
-Lista de codecs que o JellyCC considera **já ideais**. Faixas nesses formatos são sempre copiadas sem recodificação, independente do `mappings`.
+Lista de codecs que o JellyCC considera **já ideais**. Faixas nesses formatos são sempre copiadas sem *transcode*, independente do `mappings`.
 
 Valores válidos: `aac`, `eac3`, `ac3`, `flac`, `mp3`, `opus`, `vorbis`, `alac`, `dts`
 

@@ -2,11 +2,10 @@
 
 JellyCC follows the **XDG Base Directory** standard. All configuration files are located in:
 
-```text
+```
 ~/.config/jellycc/
 ├── config.json       # User preferences (language)
 └── rules.json        # Custom conversion rules (optional)
-
 ```
 
 ## `config` Command
@@ -15,7 +14,6 @@ The `config` command manages all CLI preferences. Without arguments, it opens an
 
 ```bash
 jellycc config
-
 ```
 
 ### Options
@@ -25,14 +23,17 @@ jellycc config
 | `--init` | Generates a `rules.example.json` file in the configuration directory as a starting point for customization |
 | `--lang <code>` | Sets the language directly without opening the interactive menu |
 
-```bash
-# Generate the rules template
-jellycc config --init
+To generate the rules template:
 
-# Change language directly from the command line
+```bash
+jellycc config --init
+```
+
+To change the language directly via the command line:
+
+```bash
 jellycc config --lang en-US
 jellycc config --lang pt-BR
-
 ```
 
 ## `config.json`
@@ -43,30 +44,45 @@ Stores user preferences. Automatically managed by the `config` command.
 {
   "lang": "pt-BR"
 }
-
 ```
 
 ### Fields
 
-| Field | Type | Accepted values | Description |
+| Field | Type | Accepted Values | Description |
 | --- | --- | --- | --- |
 | `lang` | `string` | `pt-BR`, `en-US` | CLI interface language |
 
 ## `rules.json`
 
-Defines the **conversion targets** for your server. This file is **optional** — without it, JellyCC uses the built-in default rules.
+Defines your server's **conversion targets**. This file is **optional** — without it, JellyCC uses the default rules.
 
 To create yours from the template:
 
 ```bash
 jellycc config --init
-# A rules.example.json file will be created in ~/.config/jellycc/
-# Rename it to rules.json and edit as needed
-cp ~/.config/jellycc/rules.example.json ~/.config/jellycc/rules.json
-
 ```
 
-### Full structure
+A `rules.example.json` file will be created in `~/.config/jellycc/`. Rename it to `rules.json` and edit as needed:
+
+```bash
+cp ~/.config/jellycc/rules.example.json ~/.config/jellycc/rules.json
+```
+
+### Partial Overwrite
+
+You **do not need** to keep the full `rules.json` file. Keep **only** the keys you want to change in the file. Anything deleted will automatically inherit the default.
+
+**Example:** HEVC 10-bit and the rest as default, your `rules.json` should only have this:
+
+```json
+{
+  "video": {
+    "target": "hevc_10bit"
+  }
+}
+```
+
+### Full Structure
 
 ```json
 {
@@ -88,7 +104,6 @@ cp ~/.config/jellycc/rules.example.json ~/.config/jellycc/rules.json
     }
   }
 }
-
 ```
 
 ### `container`
@@ -102,7 +117,7 @@ Output container for all processed files.
 
 ### `video.target`
 
-Target video codec. Files already in this format are copied without *transcode*.
+Target video codec. Files already in this format are copied without *transcoding*.
 
 | Value | Description |
 | --- | --- |
@@ -113,7 +128,7 @@ Target video codec. Files already in this format are copied without *transcode*.
 
 ### `audio.acceptable`
 
-List of codecs that JellyCC considers **already ideal**. Tracks in these formats are always copied without re-encoding, regardless of the `mappings`.
+List of codecs that JellyCC considers **already ideal**. Tracks in these formats are always copied without *transcoding*, regardless of `mappings`.
 
 Valid values: `aac`, `eac3`, `ac3`, `flac`, `mp3`, `opus`, `vorbis`, `alac`, `dts`
 
@@ -121,11 +136,11 @@ Valid values: `aac`, `eac3`, `ac3`, `flac`, `mp3`, `opus`, `vorbis`, `alac`, `dt
 
 Defines which codec to convert to when the original is **not** in the `acceptable` list. The `default` key serves as a fallback for any codec not explicitly mapped.
 
-The output bitrate is calculated automatically: `112 kbps × number of channels`, respecting the original source bitrate and the codec limits (`eac3` ≤ 768 kbps).
+The output bitrate is automatically calculated: `112 kbps × number of channels`, respecting the source's original bitrate and codec limits (`eac3` ≤ 768 kbps).
 
-| Input codec | Recommended target | Reason |
+| Input Codec | Recommended Target | Reason |
 | --- | --- | --- |
-| `ac3` | `eac3` | Upgrade with no noticeable loss, wide support |
+| `ac3` | `eac3` | Upgrade without noticeable loss, wide support |
 | `dts` | `eac3` | `dts` does not have Direct Play in most browsers |
 | `alac` | `flac` | Both lossless; FLAC has wider support |
 | `default` | `aac` | Greatest universal compatibility |
