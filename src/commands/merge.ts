@@ -9,6 +9,7 @@ import { getMediaInfo } from '../utils/ffprobe.ts';
 import { buildMergeCommand } from '../utils/builder.ts';
 import { calculateTotalFrames } from '../utils/formatters.ts';
 import { getPreferredVideoSource, getPrimaryVideoStream } from '../services/analyzer.ts';
+import { calculateDifferenceMs } from '../services/syncManager.ts';
 import { renderComparison, buildSyncOptions } from '../views/mergeView.ts';
 import { buildStreamOptions } from '../views/streamOptions.ts';
 import type { FFprobeData, SelectedStream } from '../types/media';
@@ -46,6 +47,7 @@ export async function mergeCommand(args: string[]) {
   const infoB: FFprobeData = getMediaInfo(pathB as string);
   const durA = infoA.format?.duration ? Number.parseFloat(infoA.format.duration) : 0;
   const durB = infoB.format?.duration ? Number.parseFloat(infoB.format.duration) : 0;
+  const durationDiffMs = calculateDifferenceMs(durA, durB);
 
   const vStreamRef = getPrimaryVideoStream(infoA);
   const totalFrames = calculateTotalFrames(vStreamRef, Math.max(durA, durB));
@@ -76,8 +78,7 @@ export async function mergeCommand(args: string[]) {
   let applyShortest = false;
 
   const askForSync = async () => {
-    const exactDiffMs = Math.round((durA - durB) * 1000);
-    const options = buildSyncOptions(exactDiffMs);
+    const options = buildSyncOptions(durationDiffMs);
 
     const chosenSyncAction = onCancel(await select({
       message: t('mergeHowToSync'),
@@ -85,7 +86,7 @@ export async function mergeCommand(args: string[]) {
     }));
 
     if (chosenSyncAction === 'auto') {
-      currentDelayMs = exactDiffMs;
+      currentDelayMs = durationDiffMs;
     } else if (chosenSyncAction === 'manual') {
       const delayStr = await text({
         message: t('mergeAskDelay'),
@@ -109,7 +110,7 @@ export async function mergeCommand(args: string[]) {
     if (onCancel(applyShortest) === false) applyShortest = false;
   };
 
-  if (Math.abs(durA - durB) > 1) {
+  if (Math.abs(durationDiffMs) > 1000) {
     note(pc.yellow(t('mergeDurationAlert')), t('durationAlertTitle'));
     await askForSync();
   }

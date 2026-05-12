@@ -9,6 +9,7 @@ import {
   getRepairPreCmds,
   initRepair
 } from '../services/repair.ts';
+import { buildOffsetArg, getSourceDelayMs } from '../services/syncManager.ts';
 import { getDynamicVideoEncoder } from './ffmpeg.ts';
 import { getAudioArgs, getMetadataArgs, getSubtitleArgs, getVideoArgs } from './ffmpeg-args.ts';
 import type { FallbackRules } from '../types/config';
@@ -159,8 +160,8 @@ export function buildMergeCommand(
 
   const tmpDir = useRepairMode ? initRepair(outputPath) : '';
   const vCodecArg = getMergeVideoCodecArg(selectedStreams, fallbackRules);
-  const offsetA = delayMs < 0 ? `-itsoffset ${Math.abs(delayMs) / 1000} ` : '';
-  const offsetB = delayMs > 0 ? `-itsoffset ${delayMs / 1000} ` : '';
+  const offsetA = buildOffsetArg(getSourceDelayMs(0, delayMs));
+  const offsetB = buildOffsetArg(getSourceDelayMs(1, delayMs));
 
   let currentExtraInputIdx = 2;
   let audioOutputIndex = 0;
