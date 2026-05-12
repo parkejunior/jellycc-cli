@@ -12,6 +12,7 @@ import { getPreferredVideoSource, getPrimaryVideoStream } from '../services/anal
 import { calculateDifferenceMs } from '../services/syncManager.ts';
 import { renderComparison, buildSyncOptions } from '../views/mergeView.ts';
 import { buildGroupedOptions } from '../views/streamOptions.ts';
+import { ValidationError } from '../utils/errors.ts';
 import type { FFprobeData, SelectedStream } from '../types/media';
 import type { FallbackRules } from '../types/config';
 
@@ -20,7 +21,7 @@ import fallbackRulesData from '../config/fallback_rules.yaml';
 const fallbackRules = fallbackRulesData as FallbackRules;
 
 export async function mergeCommand(args: string[]) {
-  let pathA = onCancel(await text({
+  const pathAInput = onCancel(await text({
     message: t('mergePathA'),
     placeholder: './spider-man_4k.mkv',
     validate(value) {
@@ -30,7 +31,7 @@ export async function mergeCommand(args: string[]) {
     }
   }));
 
-  let pathB = onCancel(await text({
+  const pathBInput = onCancel(await text({
     message: t('mergePathB'),
     placeholder: './spider-man_pt-br.mkv',
     validate(value) {
@@ -40,11 +41,21 @@ export async function mergeCommand(args: string[]) {
     }
   }));
 
-  pathA = sanitizePath(pathA as string)!;
-  pathB = sanitizePath(pathB as string)!;
+  const pathA = sanitizePath(pathAInput);
+  if (!pathA) {
+    throw new ValidationError(t('pathRequired'));
+  }
 
-  const infoA: FFprobeData = getMediaInfo(pathA as string);
-  const infoB: FFprobeData = getMediaInfo(pathB as string);
+  const pathB = sanitizePath(pathBInput);
+  if (!pathB) {
+    throw new ValidationError(t('pathRequired'));
+  }
+
+  const sourcePathA: string = pathA;
+  const sourcePathB: string = pathB;
+
+  const infoA: FFprobeData = getMediaInfo(sourcePathA);
+  const infoB: FFprobeData = getMediaInfo(sourcePathB);
   const durA = infoA.format?.duration ? Number.parseFloat(infoA.format.duration) : 0;
   const durB = infoB.format?.duration ? Number.parseFloat(infoB.format.duration) : 0;
   const durationDiffMs = calculateDifferenceMs(durA, durB);
@@ -70,14 +81,14 @@ export async function mergeCommand(args: string[]) {
     options: groups,
     required: true,
     initialValues
-  })) as SelectedStream[];
+  }));
 
   selectedStreams = await editTagsMenu(selectedStreams, infoA, infoB, true);
 
   let currentDelayMs = 0;
   let applyShortest = false;
 
-  const askForSync = async () => {
+  const askForSync = async (currentDelayMs: number, applyShortest: boolean) => {
     const options = buildSyncOptions(durationDiffMs);
 
     const chosenSyncAction = onCancel(await select({
@@ -85,38 +96,45 @@ export async function mergeCommand(args: string[]) {
       options
     }));
 
-    if (chosenSyncAction === 'auto') {
-      currentDelayMs = durationDiffMs;
-    } else if (chosenSyncAction === 'manual') {
-      const delayStr = await text({
-        message: t('mergeAskDelay'),
-        initialValue: currentDelayMs.toString(),
-        validate(value) {
-          if (value && isNaN(Number.parseInt(value as string, 10))) return t('validNumber');
-        }
-      });
+    let nextDelayMs = currentDelayMs;
+    let nextApplyShortest = applyShortest;
 
-      if (onCancel(delayStr) !== undefined) {
-        currentDelayMs = Number.parseInt(delayStr as string, 10) || 0;
-      }
+    if (chosenSyncAction === 'auto') {
+      nextDelayMs = durationDiffMs;
+    } else if (chosenSyncAction === 'manual') {
+      const delayStr = onCancel(await text({
+        message: t('mergeAskDelay'),
+        initialValue: nextDelayMs.toString(),
+        validate(value) {
+          if (value && isNaN(Number.parseInt(value, 10))) return t('validNumber');
+        }
+      }));
+
+      nextDelayMs = Number.parseInt(delayStr, 10) || 0;
     } else {
-      currentDelayMs = 0;
+      nextDelayMs = 0;
     }
 
-    applyShortest = await confirm({
+    nextApplyShortest = onCancel(await confirm({
       message: t('mergeStrictCut'),
-      initialValue: applyShortest
-    }) as boolean;
-    if (onCancel(applyShortest) === false) applyShortest = false;
+      initialValue: nextApplyShortest
+    }));
+
+    return {
+      currentDelayMs: nextDelayMs,
+      applyShortest: nextApplyShortest
+    };
   };
 
   if (Math.abs(durationDiffMs) > 1000) {
     note(pc.yellow(t('mergeDurationAlert')), t('durationAlertTitle'));
-    await askForSync();
+    const syncState = await askForSync(currentDelayMs, applyShortest);
+    currentDelayMs = syncState.currentDelayMs;
+    applyShortest = syncState.applyShortest;
   }
 
-  const dir = path.dirname(pathA as string);
-  const name = path.basename(pathA as string, path.extname(pathA as string));
+  const dir = path.dirname(sourcePathA);
+  const name = path.basename(sourcePathA, path.extname(sourcePathA));
   const outputPath = path.join(dir, `${name}.jellycc_merged.${fallbackRules.container}`);
 
   let menuLoop = true;
@@ -129,8 +147,8 @@ export async function mergeCommand(args: string[]) {
       infoA,
       infoB,
       fallbackRules,
-      pathA as string,
-      pathB as string,
+      sourcePathA,
+      sourcePathB,
       outputPath,
       currentDelayMs,
       applyShortest,
@@ -141,8 +159,8 @@ export async function mergeCommand(args: string[]) {
       infoA,
       infoB,
       fallbackRules,
-      pathA as string,
-      pathB as string,
+      sourcePathA,
+      sourcePathB,
       outputPath,
       currentDelayMs,
       applyShortest,
@@ -159,13 +177,13 @@ export async function mergeCommand(args: string[]) {
 
     note(pc.yellow(ffmpegCmd), `${t('mergeCmdSuggested')}${syncMsg}${cutMsg}`);
 
-    const fullScanInputs = [pathA as string, pathB as string];
+    const fullScanInputs = [sourcePathA, sourcePathB];
     const fullScanMaps = [
       ...infoA.streams.filter((stream) => stream.codec_type === 'video' || stream.codec_type === 'audio').map((stream) => `0:${stream.index}`),
       ...infoB.streams.filter((stream) => stream.codec_type === 'video' || stream.codec_type === 'audio').map((stream) => `1:${stream.index}`)
     ];
 
-    const result = await handleExecutionMenu({
+    const { action, deepScanCompleted, hasErrors } = await handleExecutionMenu({
       ffmpegCmd,
       ffmpegRepairCmd,
       fullScanInputs,
@@ -181,10 +199,10 @@ export async function mergeCommand(args: string[]) {
       allowMyopicScan: false
     });
 
-    dsCompleted = result.deepScanCompleted;
-    hasMediaErrors = result.hasErrors;
+    dsCompleted = deepScanCompleted;
+    hasMediaErrors = hasErrors;
 
-    if (result.action === 'select_streams') {
+    if (action === 'select_streams') {
       const refreshedOptions = buildGroupedOptions({
         sources: [
           { info: infoA, fileIndex: 0, label: 'A' },
@@ -203,13 +221,15 @@ export async function mergeCommand(args: string[]) {
         options: groups,
         required: true,
         initialValues
-      })) as SelectedStream[];
+      }));
 
       selectedStreams = await editTagsMenu(selectedStreams, infoA, infoB, true);
-    } else if (result.action === 'edit_tags') {
+    } else if (action === 'edit_tags') {
       selectedStreams = await editTagsMenu(selectedStreams, infoA, infoB, false);
-    } else if (result.action === 'adjust_sync') {
-      await askForSync();
+    } else if (action === 'adjust_sync') {
+      const syncState = await askForSync(currentDelayMs, applyShortest);
+      currentDelayMs = syncState.currentDelayMs;
+      applyShortest = syncState.applyShortest;
     } else {
       menuLoop = false;
     }
