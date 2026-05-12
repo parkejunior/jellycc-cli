@@ -34,10 +34,6 @@ jobs:
         if: ${{ steps.release.outputs.release_created }}
         run: bun install
 
-      - name: Run Prebuild (YAML to JSON)
-        if: ${{ steps.release.outputs.release_created }}
-        run: bun run prebuild.ts
-
       - name: Compile Binary (Linux)
         if: ${{ steps.release.outputs.release_created }}
         run: bun build ./src/index.ts --compile --target=bun-linux-x64 --outfile jellycc-linux-x64
