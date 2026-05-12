@@ -1,13 +1,8 @@
 import path from 'path';
 import { getDynamicVideoEncoder, getDynamicAudioEncoder } from './ffmpeg.ts';
+import { getRepairOutputPath, getRepairPostCmds, getRepairPreCmds, initRepair } from '../services/repair.ts';
 import type { FFprobeData, SelectedStream } from '../types/media';
 import type { FallbackRules } from '../types/config';
-
-const getFinalPath = (p: string, isRepair: boolean) => {
-  if (!isRepair) return p;
-  const parsed = path.parse(p);
-  return path.join(parsed.dir, `${parsed.name}_repaired${parsed.ext}`);
-};
 
 export function buildCheckCommand(
   selectedStreams: SelectedStream[],
@@ -32,9 +27,9 @@ export function buildCheckCommand(
 
   let tmpDir = '';
   if (useRepairMode) {
-    tmpDir = path.join(path.dirname(outputPath), '.jellycc_tmp');
-    preCmds.push(`mkdir -p "${tmpDir}"`);
-    postCmds.push(`rm -rf "${tmpDir}"`);
+    tmpDir = initRepair(outputPath);
+    preCmds.push(...getRepairPreCmds([], tmpDir));
+    postCmds.push(...getRepairPostCmds(tmpDir));
   }
 
   for (const stream of selectedStreams) {
@@ -56,7 +51,7 @@ export function buildCheckCommand(
       } else {
         codecArgs.push(getDynamicVideoEncoder(fallbackRules.video.target).replace('-c:v', `-c:v:${vOutIdx}`));
       }
-      
+
       if (stream.language !== undefined) {
         metaArgs.push(`-metadata:s:v:${vOutIdx} language="${stream.language}"`);
         metaArgs.push(`-metadata:s:v:${vOutIdx} title="${stream.title}"`);
@@ -87,7 +82,7 @@ export function buildCheckCommand(
           codecArgs.push(encoderStr);
         }
       }
-      
+
       if (stream.language !== undefined) {
         metaArgs.push(`-metadata:s:a:${aOutIdx} language="${stream.language}"`);
         metaArgs.push(`-metadata:s:a:${aOutIdx} title="${stream.title}"`);
@@ -96,7 +91,7 @@ export function buildCheckCommand(
     } else if (stream.type === 'subtitle') {
       mapArgs.push(`-map 0:${stream.streamIndex}`);
       codecArgs.push(`-c:s:${sOutIdx} copy`);
-      
+
       if (stream.language !== undefined) {
         metaArgs.push(`-metadata:s:s:${sOutIdx} language="${stream.language}"`);
         metaArgs.push(`-metadata:s:s:${sOutIdx} title="${stream.title}"`);
@@ -107,8 +102,8 @@ export function buildCheckCommand(
 
   const extraInputsStr = extraInputs.length > 0 ? extraInputs.join(' ') + ' ' : '';
   const metaStr = metaArgs.length > 0 ? metaArgs.join(' ') + ' ' : '';
-  const finalPath = useRepairMode ? getFinalPath(outputPath, true) : outputPath;
-  
+  const finalPath = useRepairMode ? getRepairOutputPath(outputPath) : outputPath;
+
   const mainCmd = `ffmpeg -y -fflags +genpts -i "${videoPath}" ${extraInputsStr}${mapArgs.join(' ')} ${codecArgs.join(' ')} ${metaStr}-max_muxing_queue_size 99999 -metadata encoded_by="JellyCC" -threads 0 "${finalPath}"`;
 
   if (useRepairMode && preCmds.length > 0) {
@@ -161,9 +156,9 @@ export function buildMergeCommand(
 
   let tmpDir = '';
   if (useRepairMode) {
-    tmpDir = path.join(path.dirname(outputPath), '.jellycc_tmp');
-    preCmds.push(`mkdir -p "${tmpDir}"`);
-    postCmds.push(`rm -rf "${tmpDir}"`);
+    tmpDir = initRepair(outputPath);
+    preCmds.push(...getRepairPreCmds([], tmpDir));
+    postCmds.push(...getRepairPostCmds(tmpDir));
   }
 
   let audioOutputIndex = 0;
@@ -190,7 +185,7 @@ export function buildMergeCommand(
           const sourcePath = stream.fileIndex === 0 ? pathA : pathB;
 
           preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -async 1 -c:a pcm_s16le -threads 0 "${wavPath}"`);
-          
+
           // 1. Delay Global (caso o utilizador tenha feito um shift estrutural no menu)
           let userDelayMs = 0;
           if (stream.fileIndex === 0 && delayMs < 0) userDelayMs = Math.abs(delayMs);
@@ -204,7 +199,7 @@ export function buildMergeCommand(
 
           // 3. Soma os dois e aplica o offset APENAS para esta faixa de áudio
           const totalWavDelayMs = userDelayMs + ptsDelayMs;
-          
+
           let wavOffsetStr = '';
           if (totalWavDelayMs > 0) {
             wavOffsetStr = `-itsoffset ${totalWavDelayMs / 1000} `;
@@ -221,25 +216,24 @@ export function buildMergeCommand(
           aCodecArgs.push(encoderStr);
         }
       }
-      
+
       if (stream.language !== undefined) {
         metaArgs.push(`-metadata:s:a:${audioOutputIndex} language="${stream.language}"`);
         metaArgs.push(`-metadata:s:a:${audioOutputIndex} title="${stream.title}"`);
       }
       audioOutputIndex++;
-      
     } else if (stream.type === 'video') {
       if (useRepairMode) {
         // A Máquina de Lavar de Vídeo para o Merge (Conserta o Relógio Quebrado)
         const cleanVideoPath = path.join(tmpDir, `temp_video_${videoOutputIndex}.mp4`);
         const sourcePath = stream.fileIndex === 0 ? pathA : pathB;
-        
+
         preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -c:v copy -threads 0 "${cleanVideoPath}"`);
-        
+
         let currentOffset = '';
         if (stream.fileIndex === 0) currentOffset = offsetA;
         if (stream.fileIndex === 1) currentOffset = offsetB;
-        
+
         extraInputs.push(`${currentOffset}-i "${cleanVideoPath}"`);
         mapArgs.push(`-map ${currentExtraInputIdx}:0`);
         currentExtraInputIdx++;
@@ -252,28 +246,27 @@ export function buildMergeCommand(
         metaArgs.push(`-metadata:s:v:${videoOutputIndex} title="${stream.title}"`);
       }
       videoOutputIndex++;
-      
     } else if (stream.type === 'subtitle') {
       if (useRepairMode && (stream.codec === 'subrip' || stream.codec === 'ass')) {
         // A Máquina de Lavar de Legendas (Desvincula do MKV para o offset funcionar)
         const ext = stream.codec === 'subrip' ? 'srt' : 'ass';
         const cleanSubPath = path.join(tmpDir, `temp_sub_${subtitleOutputIndex}.${ext}`);
         const sourcePath = stream.fileIndex === 0 ? pathA : pathB;
-        
+
         preCmds.push(`ffmpeg -y -i "${sourcePath}" -map 0:${stream.streamIndex} -threads 0 "${cleanSubPath}"`);
-        
+
         let currentOffset = '';
         if (stream.fileIndex === 0) currentOffset = offsetA;
         if (stream.fileIndex === 1) currentOffset = offsetB;
-        
+
         extraInputs.push(`${currentOffset}-i "${cleanSubPath}"`);
         mapArgs.push(`-map ${currentExtraInputIdx}:0`);
         currentExtraInputIdx++;
-        
+
         sCodecArgs.push(`-c:s:${subtitleOutputIndex} ${ext}`);
       } else {
         mapArgs.push(`-map ${stream.fileIndex}:${stream.streamIndex}`);
-        
+
         // Re-encode apenas para texto, copy para imagem
         if (stream.codec === 'subrip') {
           sCodecArgs.push(`-c:s:${subtitleOutputIndex} srt`);
@@ -297,7 +290,7 @@ export function buildMergeCommand(
   const shortestArg = (applyShortest && !useRepairMode) ? '-shortest ' : '';
   const extraInputsStr = extraInputs.length > 0 ? extraInputs.join(' ') + ' ' : '';
   const metaStr = metaArgs.length > 0 ? metaArgs.join(' ') + ' ' : '';
-  const finalPath = useRepairMode ? getFinalPath(outputPath, true) : outputPath;
+  const finalPath = useRepairMode ? getRepairOutputPath(outputPath) : outputPath;
 
   const mainCmd = `ffmpeg -y -fflags +genpts ${offsetA}-i "${pathA}" -fflags +genpts ${offsetB}-i "${pathB}" ${extraInputsStr}${mapArgs.join(' ')} ${vCodecArg} ${aCodecArg} ${sCodecArgStr} ${shortestArg}${metaStr}-max_muxing_queue_size 99999 -metadata encoded_by="JellyCC" -threads 0 "${finalPath}"`;
 

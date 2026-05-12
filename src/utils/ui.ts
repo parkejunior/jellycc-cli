@@ -1,8 +1,8 @@
 import { isCancel, cancel, select, outro, text, confirm } from '@clack/prompts';
 import pc from 'picocolors';
 import { runConversion, runDeepScan } from './ffmpeg.ts';
+import { getRepairOutputPath } from '../services/repair.ts';
 import { t } from './i18n.ts';
-import path from 'path';
 import type { FFprobeData, SelectedStream } from '../types/media';
 
 export function onCancel<T>(value: T): Exclude<T, symbol> {
@@ -107,8 +107,7 @@ export async function handleExecutionMenu(options: {
       
       let actualOutputPath = options.outputPath;
       if (isRepair) {
-        const parsed = path.parse(options.outputPath);
-        actualOutputPath = path.join(parsed.dir, `${parsed.name}_repaired${parsed.ext}`);
+        actualOutputPath = getRepairOutputPath(options.outputPath);
       }
       
       await runConversion(cmdToRun, options.totalDuration, options.totalFrames);
