@@ -4,6 +4,9 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "test:coverage": "bun test --coverage --coverage-reporter=lcov"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },

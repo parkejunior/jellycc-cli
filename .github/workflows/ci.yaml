@@ -1,0 +1,41 @@
+name: Run CI
+
+on:
+  push:
+    branches:
+      - main
+      - refactor
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    name: 🧪 Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install
+
+      - name: Type Check (TypeScript)
+        run: bunx tsc --noEmit
+
+      - name: Run Tests and Generate Coverage
+        run: bun run test:coverage
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v6
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage/lcov.info
+          fail_ci_if_error: true
+          verbose: true
