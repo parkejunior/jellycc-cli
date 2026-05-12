@@ -41,21 +41,26 @@ export async function checkCommand(args: string[]) {
     throw new ValidationError(t('filePassedNotFound'));
   }
 
-  runQuickScan(videoPath as string);
+  if (!videoPath) {
+    throw new ValidationError(t('pathRequired'));
+  }
 
-  const probeData = getMediaInfo(videoPath as string);
-  const initialDiagnostic = getDiagnostic(probeData, fallbackRules, supportMatrix, undefined, videoPath as string);
+  const targetFile: string = videoPath;
+
+  runQuickScan(targetFile);
+
+  const probeData = getMediaInfo(targetFile);
+  const initialDiagnostic = getDiagnostic(probeData, fallbackRules, supportMatrix, undefined, targetFile);
 
   note(renderMatrix(initialDiagnostic), t('checkMatrixResults'));
   note(renderActionPlan(initialDiagnostic), t('checkActionPlan'));
 
   let autoClean = false;
   if (initialDiagnostic.hasGarbage) {
-    autoClean = await confirm({
+    autoClean = onCancel(await confirm({
       message: pc.yellow(t('checkGarbageDetected')),
       initialValue: true
-    }) as boolean;
-    if (onCancel(autoClean) === false) autoClean = false;
+    }));
   }
 
   let selectedStreams: SelectedStream[] = probeData.streams.map((stream) => ({
@@ -71,8 +76,8 @@ export async function checkCommand(args: string[]) {
     selectedStreams = selectedStreams.filter((stream) => cleanIndices.has(stream.streamIndex));
   }
 
-  const dir = path.dirname(videoPath as string);
-  const name = path.basename(videoPath as string, path.extname(videoPath as string));
+  const dir = path.dirname(targetFile);
+  const name = path.basename(targetFile, path.extname(targetFile));
   const outputPath = path.join(dir, `${name}.jellycc.${fallbackRules.container}`);
 
   let menuLoop = true;
@@ -80,13 +85,13 @@ export async function checkCommand(args: string[]) {
   let hasMediaErrors = false;
 
   while (menuLoop) {
-    const currentDiagnostic = getDiagnostic(probeData, fallbackRules, supportMatrix, selectedStreams, videoPath as string);
+    const currentDiagnostic = getDiagnostic(probeData, fallbackRules, supportMatrix, selectedStreams, targetFile);
     const ffmpegCmd = buildCheckCommand(
       selectedStreams,
       probeData,
       fallbackRules,
       currentDiagnostic.selection.isVideoCompatible,
-      videoPath as string,
+      targetFile,
       outputPath,
       false
     );
@@ -95,7 +100,7 @@ export async function checkCommand(args: string[]) {
       probeData,
       fallbackRules,
       currentDiagnostic.selection.isVideoCompatible,
-      videoPath as string,
+      targetFile,
       outputPath,
       true
     );
@@ -103,9 +108,9 @@ export async function checkCommand(args: string[]) {
     const totalDuration = currentDiagnostic.metadata.durationSec;
     const totalFrames = currentDiagnostic.metadata.totalFrames;
 
-    const fullScanInputs = [videoPath as string];
+    const fullScanInputs = [targetFile];
     const fullScanMaps = ['0'];
-    const selectedScanInputs = [videoPath as string];
+    const selectedScanInputs = [targetFile];
     const selectedScanMaps = selectedStreams.map((stream) => `0:${stream.streamIndex}`);
 
     if (!currentDiagnostic.selection.needsAction) {
@@ -118,7 +123,7 @@ export async function checkCommand(args: string[]) {
       note(pc.yellow(ffmpegCmd), t('checkTranscodeCmd'));
     }
 
-    const result = await handleExecutionMenu({
+    const { action, deepScanCompleted, hasErrors } = await handleExecutionMenu({
       ffmpegCmd,
       ffmpegRepairCmd,
       fullScanInputs,
@@ -137,10 +142,10 @@ export async function checkCommand(args: string[]) {
       allowMyopicScan: true
     });
 
-    dsCompleted = result.deepScanCompleted;
-    hasMediaErrors = result.hasErrors;
+    dsCompleted = deepScanCompleted;
+    hasMediaErrors = hasErrors;
 
-    if (result.action === 'select_streams') {
+    if (action === 'select_streams') {
       const { groups, initialValues } = buildGroupedOptions({
         sources: [{ info: probeData }],
         currentSelected: selectedStreams,
@@ -156,7 +161,7 @@ export async function checkCommand(args: string[]) {
       }));
 
       selectedStreams = await editTagsMenu(selectedStreams, probeData, undefined, true);
-    } else if (result.action === 'edit_tags') {
+    } else if (action === 'edit_tags') {
       selectedStreams = await editTagsMenu(selectedStreams, probeData, undefined, false);
     } else {
       menuLoop = false;
