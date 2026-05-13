@@ -23,7 +23,9 @@ describe('utils/builder.ts', () => {
 
   const mockInfoB = {
     streams: [
-      { index: 0, codec_type: 'audio', codec_name: 'aac', channels: 2, bit_rate: '128000' }
+      { index: 0, codec_type: 'audio', codec_name: 'aac', channels: 2, bit_rate: '128000' },
+      { index: 1, codec_type: 'video', codec_name: 'h264' },
+      { index: 2, codec_type: 'subtitle', codec_name: 'ass' }
     ]
   } as FFprobeData;
 
@@ -59,7 +61,9 @@ describe('utils/builder.ts', () => {
 
   test('buildCheckCommand should generate correct repair mode command chain', () => {
     const streams: SelectedStream[] = [
-      { streamIndex: 0, type: 'video', codec: 'h264' }
+      { streamIndex: 0, type: 'video', codec: 'h264' },
+      { streamIndex: 1, type: 'audio', codec: 'aac' },
+      { streamIndex: 2, type: 'subtitle', codec: 'ass' }
     ];
 
     const result = buildCheckCommand(streams, mockInfoA, mockRules, true, 'input.mkv', '/out/final.mkv', true);
@@ -67,15 +71,17 @@ describe('utils/builder.ts', () => {
     expect({
       hasMkdir: result.startsWith('mkdir -p'),
       hasTempVideoOutput: result.includes('temp_video_0.mp4'),
-      hasMainFfmpeg: result.includes('ffmpeg -y -fflags +genpts'),
-      hasMapFromTemp: result.includes('-map 1:0'),
+      hasTempAudioOutput: result.includes('temp_audio_0.w64'),
+      hasMapFromTempV: result.includes('-map 1:0'),
+      hasMapFromTempA: result.includes('-map 2:0'),
       hasRm: result.includes('rm -rf'),
       hasRepairedSuffix: result.includes('final_repaired.mkv')
     }).toMatchObject({
       hasMkdir: true,
       hasTempVideoOutput: true,
-      hasMainFfmpeg: true,
-      hasMapFromTemp: true,
+      hasTempAudioOutput: true,
+      hasMapFromTempV: true,
+      hasMapFromTempA: true,
       hasRm: true,
       hasRepairedSuffix: true
     });
@@ -113,19 +119,25 @@ describe('utils/builder.ts', () => {
   test('buildMergeCommand should generate complex repair chain across multiple inputs', () => {
     const streams: SelectedStream[] = [
       { streamIndex: 0, fileIndex: 0, type: 'video', codec: 'hevc' },
-      { streamIndex: 0, fileIndex: 1, type: 'audio', codec: 'ac3' }
+      { streamIndex: 1, fileIndex: 1, type: 'video', codec: 'h264' },
+      { streamIndex: 0, fileIndex: 1, type: 'audio', codec: 'ac3' },
+      { streamIndex: 2, fileIndex: 1, type: 'subtitle', codec: 'ass' }
     ];
 
     const result = buildMergeCommand(streams, mockInfoA, mockInfoB, mockRules, 'A.mkv', 'B.mkv', '/out/merged.mkv', 0, false, true);
 
     expect({
       hasTempAudioRepair: result.includes('temp_audio_0.w64'),
-      hasTempVideoRepair: result.includes('temp_video_0.mp4'),
+      hasTempVideoRepair1: result.includes('temp_video_0.mp4'),
+      hasTempVideoRepair2: result.includes('temp_video_1.mp4'),
+      hasTempSubRepair: result.includes('temp_sub_0.ass'),
       hasComplexMap1: result.includes('-map 2:0'),
       hasComplexMap2: result.includes('-map 3:0')
     }).toMatchObject({
       hasTempAudioRepair: true,
-      hasTempVideoRepair: true,
+      hasTempVideoRepair1: true,
+      hasTempVideoRepair2: true,
+      hasTempSubRepair: true,
       hasComplexMap1: true,
       hasComplexMap2: true
     });
