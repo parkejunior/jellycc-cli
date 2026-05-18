@@ -6,7 +6,7 @@
   "private": true,
   "scripts": {
     "test:coverage": "bun test src --coverage --coverage-reporter=lcov",
-    "test:e2e": "bun test tests/e2e"
+    "test:e2e": "bun run tests/helpers/setup-fixtures.ts && bun test tests/e2e"
   },
   "devDependencies": {
     "@types/bun": "latest"
