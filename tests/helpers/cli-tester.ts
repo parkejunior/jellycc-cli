@@ -3,6 +3,7 @@ import { spawn, type Subprocess } from 'bun';
 export const Keys = {
   Enter: '\r',
   Space: ' ',
+  Backspace: '\x7F',
   Down: '\x1B[B',
   Up: '\x1B[A',
 };
@@ -64,6 +65,12 @@ export class CliTester {
     if (this.proc.stdin && typeof this.proc.stdin !== 'number') {
       this.proc.stdin.write(input);
       this.proc.stdin.flush();
+    }
+  }
+
+  public press(key: string, count: number = 1): void {
+    for (let i = 0; i < count; i += 1) {
+      this.write(key);
     }
   }
 
