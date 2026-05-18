@@ -51,8 +51,7 @@ describe('E2E: JellyCC Config Menu', () => {
 
     await cli.waitForText('What do you want to do?');
 
-    cli.write(Keys.Down);
-    cli.write(Keys.Down);
+    cli.write(Keys.Up);
     cli.write(Keys.Enter);
 
     const exitCode = await cli.waitForExit();
@@ -93,8 +92,7 @@ describe('E2E: JellyCC Config Menu', () => {
 
     await cli.waitForText('What do you want to do?');
 
-    cli.write(Keys.Down);
-    cli.write(Keys.Down);
+    cli.write(Keys.Up);
     cli.write(Keys.Enter);
 
     const exitCode = await cli.waitForExit();
