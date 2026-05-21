@@ -1,12 +1,12 @@
 import { t } from './utils/i18n.ts';
-import { intro, outro } from '@clack/prompts';
+import { intro, cancel, updateSettings } from '@clack/prompts';
 import pc from 'picocolors';
-import { updateSettings } from '@clack/prompts';
 import pkg from '../package.json';
 
 import { checkCommand } from './commands/check.ts';
 import { mergeCommand } from './commands/merge.ts';
 import { configCommand } from './commands/config.ts';
+import { JellyError, UserCancelError } from './utils/errors.ts';
 
 updateSettings({
   messages: {
@@ -23,9 +23,9 @@ async function main() {
   else if (command === 'config' || command === 'lang') currentCmd = 'config'; 
 
   const titleMap: Record<string, string> = {
-    'check': t('titleCheck'),
-    'merge': t('titleMerge'),
-    'config': t('titleConfig')
+    check: t('titleCheck'),
+    merge: t('titleMerge'),
+    config: t('titleConfig')
   };
 
   intro(`                           
@@ -39,7 +39,6 @@ async function main() {
                                      ░██                       
                                ░███████  v${pkg.version}
 ⛬  ${pc.bold(titleMap[currentCmd])}`);
-
   if (currentCmd === 'check') {
     await checkCommand(command === 'check' || command === 'c' ? args.slice(1) : args);
   } else if (currentCmd === 'merge') {
@@ -49,4 +48,18 @@ async function main() {
   }
 }
 
-main().catch(console.error);
+void main().catch((error: unknown) => {
+  if (error instanceof UserCancelError) {
+    cancel(pc.red(error.message || t('cancel')));
+    process.exit(0);
+  }
+
+  if (error instanceof JellyError) {
+    cancel(pc.red(error.message));
+    process.exit(1);
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  cancel(pc.red(`Erro interno inesperado: ${message}`));
+  process.exit(1);
+});

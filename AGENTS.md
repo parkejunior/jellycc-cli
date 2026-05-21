@@ -1,35 +1,48 @@
-# 🤖 Agent Directives: JellyCC CLI
+# AGENTS.md — JellyCC CLI
 
-This document provides architectural context, coding standards, and directives for any AI agent modifying this repository. **Read these constraints carefully.**
+## Project Overview
 
-## 🎯 Project Context
-A Node.js/Bun CLI application (TypeScript) designed to automate media server maintenance, ensuring absolute *Direct Play* compatibility for Jellyfin. It features two primary operations:
-1. **`check`**: Inspects a single video file, verifies integrity, checks compatibility, and suggests precise FFmpeg conversions.
-2. **`merge`**: Interactive remuxing of multiple files, automatically electing the best video stream base.
+JellyCC is a Bun-based CLI tool that analyzes, repairs, remuxes, and transcodes media files to ensure Direct Play compatibility on Jellyfin. It wraps FFmpeg and FFprobe.
 
-## 🏗️ Tech Stack
-- **Runtime:** Bun (`type: "module"`)
-- **CLI UI:** `@clack/prompts` & `picocolors`
-- **System Interaction:** `child_process` (execSync, spawn), `fs`, `path`
-- **Data Parsing:** `yaml` (Source of truth) -> Compiled to `json` at build time.
+## Runtime and Language
 
-## 📜 Architectural Rules & Constraints (Strict)
+- **Runtime:** Bun
+- **Language:** TypeScript (strict)
+- **External hard dependencies:** `ffmpeg` and `ffprobe` installed globally on the system.
 
-### 1. Separation of Concerns (Clean Code)
-- **Commands (`src/commands/`)**: Must remain thin orchestrators. They only gather data, trigger UI, and execute processes.
-- **FFmpeg Builder (`src/utils/builder.ts`)**: All complex FFmpeg string construction, stream mapping (`-map`), and codec assignments (`-c:v`, `-c:a`) must be isolated here.
-- **Universal UI (`src/utils/ui.ts`)**: The execution menu and async process triggers must be handled by `handleExecutionMenu`.
-- **Formatters (`src/utils/formatters.ts`)**: Codec translations, subtitle burn-in warnings (PGS/VobSub), and math calculations (e.g., total frames) belong here.
+## Project Structure
 
-### 2. Media Handling (FFmpeg)
-- **Passthrough is Sacred:** Always prioritize `-c:v copy` and `-c:a copy` if the stream is already compatible.
-- **Dynamic Engine (`ffmpeg.ts`):** Never hardcode transcoder bitrates. Use `getDynamicVideoEncoder()` (Visually Lossless CRF 18) and `getDynamicAudioEncoder()` (calculates bitrate per channel without exceeding the source bitrate).
-- **Surgical Mapping:** Attached pictures (MJPEG/PNG covers) must be excluded using negative mapping (`-map -0:v:X`) to prevent FFmpeg's 30,000 FPS container bug.
-- **Async Execution:** Long-running tasks (Conversion, Deep Scan) must use `spawn`. Parse `stderr` in real-time to render Clack progress bars and tail logs without flooding the terminal.
+```
+src/
+  index.ts                  # Entry point, command routing
+  commands/                 # Command modules
+  services/                 # Service modules
+  utils/                    # Utility modules
+  views/                    # UI modules
+  locales/                  # Internationalization modules
+  types/                    # Type definitions
+  config/
+    fallback_rules.yaml         # Default conversion rules (container, video, audio)
+    jellyfin_codec_support.yaml # Client compatibility matrix
+```
 
-### 3. Build & Configurations
-- **DO NOT read `.yaml` at runtime.** The application relies on `../../dist/matrix.json` and `../../dist/rules.json` (using `with { type: 'json' }` import assertions).
+## Configuration
 
-### 4. Code Style
-- Keep logic functional and procedural. Avoid complex OOP structures.
-- CLI output, prompts, and user-facing logs must be **strictly in Brazilian Portuguese (pt-BR)**.
+Follow the [configuration docs](docs/CONFIGURATION.md).
+
+## Internationalization
+
+All user-visible strings go through `t(key, ...args)` in `src/utils/i18n.ts`. Positional placeholders use `{0}`, `{1}`, etc. Locale dictionaries are in `src/locales/`. Adding a new string requires entries in both `en-US.ts` and `pt-BR.ts` with identical keys.
+
+## Error Handling
+
+Three error classes in `src/utils/errors.ts`:
+- `JellyError` — operational FFmpeg/FFprobe failures; exits with code 1.
+- `UserCancelError` — user cancelled an interactive prompt; exits with code 0.
+- `ValidationError` — bad input (missing file, invalid path); treated as a user error.
+
+The main catch block in `index.ts` handles all three. Do not `process.exit()` inside commands; throw the appropriate error class instead.
+
+## UI Library
+
+Interactive prompts use `@clack/prompts` (`text`, `confirm`, `groupMultiselect`, `note`, `log`, `spinner`). Colors use `picocolors`. Do not use `console.log` for user-facing output; prefer `log.info`, `log.warn`, or `note` from `@clack/prompts`.

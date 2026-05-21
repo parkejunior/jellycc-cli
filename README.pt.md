@@ -9,6 +9,7 @@
   <a href="https://bun.sh/"><img src="https://img.shields.io/badge/Bun-%23000000.svg?style=flat&logo=bun&logoColor=white" /></a> 
   <a href="https://bomb.sh/"><img src="https://img.shields.io/badge/Bombshell-ff00d0?style=flat&logo=diaspora&logoColor=white" /></a> 
   <a href="https://ffmpeg.org/"><img src="https://img.shields.io/badge/FFmpeg-007808?style=flat&logo=ffmpeg&logoColor=white" /></a>
+  <a href="https://codecov.io/github/parkejunior/jellycc-cli"><img alt="Codecov" src="https://img.shields.io/codecov/c/github/parkejunior/jellycc-cli?style=flat&logo=codecov&labelColor=172a3a&color=b2ff9e&label=Coverage" /></a>
 </p>
 
 <p align="center">

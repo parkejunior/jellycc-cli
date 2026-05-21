@@ -1,7 +1,10 @@
 name: Build and Release JellyCC
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Run CI"]
+    types:
+      - completed
     branches:
       - main
 
@@ -13,6 +16,8 @@ jobs:
   release-please:
     name: Release Please and Build
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
     steps:
       - name: Run Release Please
         id: release

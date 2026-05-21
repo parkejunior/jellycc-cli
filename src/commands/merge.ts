@@ -1,268 +1,327 @@
-import { t } from '../utils/i18n.ts';
-import { text, groupMultiselect, note, confirm, select, log } from '@clack/prompts';
-import pc from 'picocolors';
 import fs from 'fs';
 import path from 'path';
+import { confirm, groupMultiselect, log, note, select, text } from '@clack/prompts';
+import pc from 'picocolors';
 
-import { onCancel, sanitizePath, handleExecutionMenu, editTagsMenu } from '../utils/ui.ts';
-import { getMediaInfo } from '../utils/ffprobe.ts';
+import { getPreferredVideoSource, getPrimaryVideoStream } from '../services/analyzer.ts';
+import { calculateDifferenceMs } from '../services/syncManager.ts';
+import fallbackRulesData from '../config/fallback_rules.yaml';
+import type { FallbackRules } from '../types/config';
+import type { FFprobeData, SelectedStream } from '../types/media';
 import { buildMergeCommand } from '../utils/builder.ts';
-import { formatFps, formatDuration, formatSize, padLabel, isImageSubtitle, formatSubtitleCodec, calculateTotalFrames } from '../utils/formatters.ts';
+import { ValidationError } from '../utils/errors.ts';
+import { getMediaInfo } from '../utils/ffprobe.ts';
+import { calculateTotalFrames } from '../utils/formatters.ts';
+import { t } from '../utils/i18n.ts';
+import { editTagsMenu, handleExecutionMenu, onCancel, sanitizePath } from '../utils/ui.ts';
+import { buildSyncOptions, renderComparison } from '../views/mergeView.ts';
+import { buildGroupedOptions } from '../views/streamOptions.ts';
 
-import fallbackRules from '../config/fallback_rules.yaml';
+const fallbackRules = fallbackRulesData as FallbackRules;
 
-export async function mergeCommand(args: string[]) {
-  let pathA = onCancel(await text({
-    message: t('mergePathA'),
-    placeholder: './spider-man_4k.mkv',
-    validate(value) {
-      const clean = sanitizePath(value);
-      if (!clean) return t('pathRequired');
-      if (!fs.existsSync(clean)) return t('fileNotFound');
-    }
-  }));
+interface MergeSourcePaths {
+  sourcePathA: string;
+  sourcePathB: string;
+}
 
-  let pathB = onCancel(await text({
-    message: t('mergePathB'),
-    placeholder: './spider-man_pt-br.mkv',
-    validate(value) {
-      const clean = sanitizePath(value);
-      if (!clean) return t('pathRequired');
-      if (!fs.existsSync(clean)) return t('fileNotFound');
-    }
-  }));
+interface MergeMediaContext extends MergeSourcePaths {
+  infoA: FFprobeData;
+  infoB: FFprobeData;
+  durationDiffMs: number;
+  totalDuration: number;
+  totalFrames: number;
+  suggestedVideo: string;
+  outputPath: string;
+}
 
-  pathA = sanitizePath(pathA as string);
-  pathB = sanitizePath(pathB as string);
+interface MergeSessionState {
+  selectedStreams: SelectedStream[];
+  currentDelayMs: number;
+  applyShortest: boolean;
+  deepScanCompleted: boolean;
+  hasMediaErrors: boolean;
+}
 
-  const infoA = getMediaInfo(pathA as string);
-  const infoB = getMediaInfo(pathB as string);
-  const durA = infoA.format?.duration ? parseFloat(infoA.format.duration) : 0;
-  const durB = infoB.format?.duration ? parseFloat(infoB.format.duration) : 0;
+interface MergeSyncState {
+  currentDelayMs: number;
+  applyShortest: boolean;
+}
 
-  const vStreamRef = infoA.streams.find((s: any) => s.codec_type === 'video' && s.codec_name !== 'mjpeg');
-  const totalFrames = calculateTotalFrames(vStreamRef, Math.max(durA, durB));
+interface MergeLoopContext {
+  ffmpegCmd: string;
+  ffmpegRepairCmd: string;
+  totalDuration: number;
+  totalFrames: number;
+  fullScanInputs: string[];
+  fullScanMaps: string[];
+}
 
-  const getVideoStreamInfo = (info: any) => {
-    const stream = info.streams.find((s: any) => s.codec_type === 'video');
-    if (!stream) return null;
-    return { width: stream.width || 0, height: stream.height || 0, bitrate: stream.bit_rate ? parseInt(stream.bit_rate) : 0 };
+export async function mergeCommand(_args: string[]) {
+  const paths = await resolveSourcePaths();
+  const media = buildMediaContext(paths);
+
+  showComparison(media);
+
+  const state: MergeSessionState = {
+    selectedStreams: await promptInitialStreamSelection(media),
+    currentDelayMs: 0,
+    applyShortest: false,
+    deepScanCompleted: false,
+    hasMediaErrors: false
   };
 
-  const vA = getVideoStreamInfo(infoA);
-  const vB = getVideoStreamInfo(infoB);
-
-  let suggestedVideo = 'A';
-  if (vA && vB) {
-    const pixelsA = vA.width * vA.height;
-    const pixelsB = vB.width * vB.height;
-    if (pixelsB > pixelsA || (pixelsB === pixelsA && vB.bitrate > vA.bitrate)) suggestedVideo = 'B';
-  }
-
-  const buildGroupedOptions = (infoA: any, infoB: any, currentSelected?: any[]) => {
-    const groups: Record<string, any[]> = { [t('groupVideo')]: [], [t('groupAudio')]: [], [t('groupSubs')]: [] };
-    const initialValues: any[] = [];
-
-    const processStream = (s: any, fileLabel: string, fileIndex: number) => {
-      if (s.codec_type === 'video' && ['mjpeg', 'png', 'bmp'].includes(s.codec_name)) return;
-      let label = '';
-      const lang = s.tags && s.tags.language ? s.tags.language.toUpperCase() : 'UND';
-      
-      if (s.codec_type === 'video') {
-        const fps = formatFps(s.r_frame_rate || s.avg_frame_rate).replace(' fps', '');
-        const bitrate = s.bit_rate ? Math.round(parseInt(s.bit_rate) / 1000) + ' kbps' : 'N/A';
-        label = `[${s.codec_name}] ${s.width}x${s.height} @ ${fps}fps - ${bitrate}`;
-      } else if (s.codec_type === 'audio') {
-        const hz = s.sample_rate ? Math.round(parseInt(s.sample_rate) / 1000) + ' kHz' : 'N/A';
-        const bitrate = s.bit_rate ? Math.round(parseInt(s.bit_rate) / 1000) + ' kbps' : 'N/A';
-        const channels = s.channels === 6 ? '5.1' : s.channels === 2 ? t('fmtStereo') : s.channels;
-        label = `[${s.codec_name}] (${lang}) ${channels} Ch | ${hz} | ${bitrate}`;
-      } else if (s.codec_type === 'subtitle') {
-        const subStatus = isImageSubtitle(s.codec_name) ? pc.yellow(` ⚠ ${t('checkBurnIn')}`) : pc.green(` ✔ ${t('checkSafe')}`);
-        label = `[${formatSubtitleCodec(s.codec_name)}] (${lang})${s.tags?.title ? ` - "${s.tags.title}"` : ''}${subStatus}`;
-      } else {
-        label = `[${s.codec_type}] ${s.codec_name}`;
-      }
-      
-      const optionValue = { fileIndex, streamIndex: s.index, type: s.codec_type, codec: s.codec_name };
-      const option = { value: optionValue, label: `${label}${t('fileSuffix', fileLabel)}` };
-
-      if (s.codec_type === 'video') groups[t('groupVideo')]!.push(option);
-      else if (s.codec_type === 'audio') groups[t('groupAudio')]!.push(option);
-      else groups[t('groupSubs')]!.push(option);
-
-      if (currentSelected) {
-        if (currentSelected.some((cs: any) => cs.fileIndex === fileIndex && cs.streamIndex === s.index)) {
-          initialValues.push(optionValue);
-        }
-      } else {
-        if (suggestedVideo === fileLabel && s.codec_type === 'video') initialValues.push(optionValue);
-      }
-    };
-
-    infoA.streams.forEach((s: any) => processStream(s, 'A', 0));
-    infoB.streams.forEach((s: any) => processStream(s, 'B', 1));
-    Object.keys(groups).forEach(k => { if (groups[k]!.length === 0) delete groups[k]; });
-    return { groups, initialValues };
-  };
-
-  const buildFileSummary = (info: any) => {
-    const duration = info.format?.duration ? formatDuration(parseFloat(info.format.duration)) : 'N/A';
-    const size = info.format?.size ? formatSize(parseInt(info.format.size)) : 'N/A';
-    const videos = info.streams.filter((s: any) => s.codec_type === 'video');
-    const audios = info.streams.filter((s: any) => s.codec_type === 'audio');
-    const subs = info.streams.filter((s: any) => s.codec_type === 'subtitle');
-    return {
-      duration, size,
-      vSummary: videos.length > 0 ? `${videos[0].codec_name} (${videos[0].width}x${videos[0].height})` : t('mergeNone'),
-      aSummary: audios.length > 0 ? `${audios.length} ${t('checkTrack')} (${audios.map((a: any) => a.codec_name).join(', ')})` : t('mergeNone'),
-      sSummary: subs.length > 0 ? `${subs.length} ${t('checkTrack')}` : t('mergeNone')
-    };
-  };
-
-  const sumA = buildFileSummary(infoA);
-  const sumB = buildFileSummary(infoB);
-
-  note([
-    `${pc.bold(padLabel(t('mergeInfo'), 10))} | ${pc.bold(padLabel(t('mergeFileA'), 30))} | ${pc.bold(t('mergeFileB'))}`,
-    `${padLabel('----------', 10)}-|-${padLabel('------------------------------', 30)}-|------------------------------`,
-    `${pc.dim(padLabel(t('mergeDuration'), 10))} | ${padLabel(sumA.duration, 30)} | ${sumB.duration}`,
-    `${pc.dim(padLabel(t('mergeSize'), 10))} | ${padLabel(sumA.size, 30)} | ${sumB.size}`,
-    `${pc.dim(padLabel(t('checkVideo').replace(':', ''), 10))} | ${padLabel(sumA.vSummary, 30)} | ${sumB.vSummary}`,
-    `${pc.dim(padLabel(t('checkAudio').replace(':', ''), 10))} | ${padLabel(sumA.aSummary, 30)} | ${sumB.aSummary}`,
-    `${pc.dim(padLabel(t('checkSubs'), 10))} | ${padLabel(sumA.sSummary, 30)} | ${sumB.sSummary}`,
-  ].join('\n'), t('mergeComparison'));
-
-  let { groups, initialValues } = buildGroupedOptions(infoA, infoB);
-  let selectedStreams = onCancel(await groupMultiselect({
-    message: `${t('mergeSelectStreams')} (${t('fileSuggest', suggestedVideo)})`,
-    options: groups,
-    required: true,
-    initialValues: initialValues.filter(Boolean),
-  })) as any[];
-
-  selectedStreams = await editTagsMenu(selectedStreams, infoA, infoB, true);
-
-  let currentDelayMs = 0;
-  let applyShortest = false;
-
-  const askForSync = async () => {
-    const exactDiffMs = Math.round((durA - durB) * 1000);
-    const options = [];
-
-    // O "Auto-alinhar" só aparece se houver diferença de duração física
-    if (Math.abs(exactDiffMs) > 1000) {
-      options.push({ 
-        label: t('mergeAutoSync', exactDiffMs > 0 ? t('delayBehind', Math.abs(exactDiffMs)) : t('delayAhead', Math.abs(exactDiffMs))), 
-        value: 'auto' 
-      });
-    }
-
-    // As opções manuais aparecem SEMPRE
-    options.push({ label: t('mergeManualSync'), value: 'manual' });
-    options.push({ label: t('mergeNoSync'), value: 'none' });
-
-    const chosenSyncAction = onCancel(await select({
-      message: t('mergeHowToSync'),
-      options: options
-    })) as string;
-
-    if (chosenSyncAction === 'auto') {
-      currentDelayMs = exactDiffMs;
-    } else if (chosenSyncAction === 'manual') {
-      const delayStr = await text({
-        message: t('mergeAskDelay'),
-        initialValue: currentDelayMs.toString(),
-        validate(value) {
-          if (value && isNaN(parseInt(value as string))) return t('validNumber');
-        }
-      });
-      if (onCancel(delayStr) !== undefined) {
-        currentDelayMs = parseInt(delayStr as string) || 0;
-      }
-    } else {
-      currentDelayMs = 0;
-    }
-
-    applyShortest = await confirm({
-      message: t('mergeStrictCut'),
-      initialValue: applyShortest
-    }) as boolean;
-    if (onCancel(applyShortest) === false) applyShortest = false;
-  };
-
-  if (Math.abs(durA - durB) > 1) {
+  if (Math.abs(media.durationDiffMs) > 1000) {
     note(pc.yellow(t('mergeDurationAlert')), t('durationAlertTitle'));
-    await askForSync();
+    applySyncState(state, await promptSyncAdjustment(media.durationDiffMs, state));
   }
 
-  const dir = path.dirname(pathA as string);
-  const name = path.basename(pathA as string, path.extname(pathA as string));
-  const outputPath = path.join(dir, `${name}.jellycc_merged.${fallbackRules.container}`);
+  while (true) {
+    const context = buildLoopContext(media, state);
 
-  let menuLoop = true;
-  let dsCompleted = false;
-  let hasMediaErrors = false;
-
-  while (menuLoop) {
-    const ffmpegCmd = buildMergeCommand(selectedStreams, infoA, infoB, fallbackRules, pathA as string, pathB as string, outputPath, currentDelayMs, applyShortest, false);
-    const ffmpegRepairCmd = buildMergeCommand(selectedStreams, infoA, infoB, fallbackRules, pathA as string, pathB as string, outputPath, currentDelayMs, applyShortest, true);
-
-    let syncMsg = currentDelayMs !== 0 ? pc.dim(t('syncAdjusted', currentDelayMs)) : '';
-    let cutMsg = applyShortest ? pc.yellow(t('strictCut')) : '';
-
-    // UI Contextual elegante usando o log do Clack
-    const hasSubs = selectedStreams.some((s: any) => s.type === 'subtitle');
-    if (currentDelayMs !== 0 && hasSubs) {
-      log.info(pc.cyan(t('syncWarning')));
-    }
-
-    note(pc.yellow(ffmpegCmd), `${t('mergeCmdSuggested')}${syncMsg}${cutMsg}`);
-
-    // Mapeamento Total: Todos os vídeos/áudios do Arquivo 0 (A) e do Arquivo 1 (B)
-    const fullScanInputs = [pathA as string, pathB as string];
-    const fullScanMaps = [
-      ...infoA.streams.filter((s: any) => s.codec_type === 'video' || s.codec_type === 'audio').map((s: any) => `0:${s.index}`),
-      ...infoB.streams.filter((s: any) => s.codec_type === 'video' || s.codec_type === 'audio').map((s: any) => `1:${s.index}`)
-    ];
+    showCommandPreview(context, state);
 
     const result = await handleExecutionMenu({
-      ffmpegCmd,
-      ffmpegRepairCmd,
-      fullScanInputs,
-      fullScanMaps,
-      outputPath,
-      totalDuration: Math.max(durA, durB),
-      totalFrames,
+      ffmpegCmd: context.ffmpegCmd,
+      ffmpegRepairCmd: context.ffmpegRepairCmd,
+      fullScanInputs: context.fullScanInputs,
+      fullScanMaps: context.fullScanMaps,
+      outputPath: media.outputPath,
+      totalDuration: context.totalDuration,
+      totalFrames: context.totalFrames,
       isMerge: true,
       allowStreamSelection: true,
       allowSyncAdjustment: true,
-      deepScanCompleted: dsCompleted,
-      hasErrors: hasMediaErrors,
+      deepScanCompleted: state.deepScanCompleted,
+      hasErrors: state.hasMediaErrors,
       allowMyopicScan: false
     });
 
-    dsCompleted = result.deepScanCompleted;
-    hasMediaErrors = result.hasErrors;
+    state.deepScanCompleted = result.deepScanCompleted;
+    state.hasMediaErrors = result.hasErrors;
 
     if (result.action === 'select_streams') {
-      const refreshedOptions = buildGroupedOptions(infoA, infoB, selectedStreams);
-      selectedStreams = onCancel(await groupMultiselect({
-        message: t('mergeModifyStreams'),
-        options: refreshedOptions.groups,
-        required: true,
-        initialValues: refreshedOptions.initialValues,
-      })) as any[];
-
-      selectedStreams = await editTagsMenu(selectedStreams, infoA, infoB, true);
-      
-    } else if (result.action === 'edit_tags') {
-      // Direto ao ponto
-      selectedStreams = await editTagsMenu(selectedStreams, infoA, infoB, false);
-    } else if (result.action === 'adjust_sync') {
-      await askForSync();
-    } else {
-      menuLoop = false;
+      state.selectedStreams = await promptStreamSelection(state.selectedStreams, media);
+      continue;
     }
+
+    if (result.action === 'edit_tags') {
+      state.selectedStreams = await editTagsMenu(state.selectedStreams, media.infoA, media.infoB, false);
+      continue;
+    }
+
+    if (result.action === 'adjust_sync') {
+      applySyncState(state, await promptSyncAdjustment(media.durationDiffMs, state));
+      continue;
+    }
+
+    return;
   }
+}
+
+async function resolveSourcePaths(): Promise<MergeSourcePaths> {
+  return {
+    sourcePathA: await promptSourcePath('mergePathA', './spider-man_4k.mkv'),
+    sourcePathB: await promptSourcePath('mergePathB', './spider-man_pt-br.mkv')
+  };
+}
+
+async function promptSourcePath(messageKey: string, placeholder: string) {
+  const rawPath = onCancel(await text({
+    message: t(messageKey),
+    placeholder,
+    validate(value) {
+      const clean = sanitizePath(value);
+      if (!clean) return t('pathRequired');
+      if (!fs.existsSync(clean)) return t('fileNotFound');
+    }
+  }));
+
+  const cleanPath = sanitizePath(rawPath);
+
+  if (!cleanPath) {
+    throw new ValidationError(t('pathRequired'));
+  }
+
+  return cleanPath;
+}
+
+function buildMediaContext(paths: MergeSourcePaths): MergeMediaContext {
+  const infoA = getMediaInfo(paths.sourcePathA);
+  const infoB = getMediaInfo(paths.sourcePathB);
+  const durationA = getDurationSeconds(infoA);
+  const durationB = getDurationSeconds(infoB);
+  const totalDuration = Math.max(durationA, durationB);
+  const vStreamRef = getPrimaryVideoStream(infoA);
+
+  return {
+    ...paths,
+    infoA,
+    infoB,
+    durationDiffMs: calculateDifferenceMs(durationA, durationB),
+    totalDuration,
+    totalFrames: calculateTotalFrames(vStreamRef, totalDuration),
+    suggestedVideo: getPreferredVideoSource(infoA, infoB),
+    outputPath: buildOutputPath(paths.sourcePathA)
+  };
+}
+
+function getDurationSeconds(probeData: FFprobeData) {
+  return probeData.format?.duration ? Number.parseFloat(probeData.format.duration) : 0;
+}
+
+function buildOutputPath(sourcePathA: string) {
+  const dir = path.dirname(sourcePathA);
+  const name = path.basename(sourcePathA, path.extname(sourcePathA));
+  return path.join(dir, `${name}.jellycc_merged.${fallbackRules.container}`);
+}
+
+function showComparison(media: MergeMediaContext) {
+  note(renderComparison(media.infoA, media.infoB), t('mergeComparison'));
+}
+
+async function promptInitialStreamSelection(media: MergeMediaContext) {
+  const { groups, initialValues } = buildGroupedOptions({
+    sources: buildStreamOptionSources(media),
+    preferredSourceLabel: media.suggestedVideo,
+    includeAttachedPictures: false,
+    includeAudioTitle: false
+  });
+
+  const selectedStreams = onCancel(await groupMultiselect<SelectedStream>({
+    message: `${t('mergeSelectStreams')} (${t('fileSuggest', media.suggestedVideo)})`,
+    options: groups,
+    required: true,
+    initialValues
+  }));
+
+  return editTagsMenu(selectedStreams, media.infoA, media.infoB, true);
+}
+
+async function promptStreamSelection(selectedStreams: SelectedStream[], media: MergeMediaContext) {
+  const { groups, initialValues } = buildGroupedOptions({
+    sources: buildStreamOptionSources(media),
+    currentSelected: selectedStreams,
+    includeAttachedPictures: false,
+    includeAudioTitle: false
+  });
+
+  const nextSelection = onCancel(await groupMultiselect<SelectedStream>({
+    message: t('mergeModifyStreams'),
+    options: groups,
+    required: true,
+    initialValues
+  }));
+
+  return editTagsMenu(nextSelection, media.infoA, media.infoB, true);
+}
+
+function buildStreamOptionSources(media: MergeMediaContext) {
+  return [
+    { info: media.infoA, fileIndex: 0, label: 'A' },
+    { info: media.infoB, fileIndex: 1, label: 'B' }
+  ];
+}
+
+async function promptSyncAdjustment(
+  durationDiffMs: number,
+  currentState: MergeSyncState
+): Promise<MergeSyncState> {
+  const options = buildSyncOptions(durationDiffMs);
+
+  const chosenSyncAction = onCancel(await select({
+    message: t('mergeHowToSync'),
+    options
+  }));
+
+  let nextDelayMs = currentState.currentDelayMs;
+  let nextApplyShortest = currentState.applyShortest;
+
+  if (chosenSyncAction === 'auto') {
+    nextDelayMs = durationDiffMs;
+  } else if (chosenSyncAction === 'manual') {
+    const delayStr = onCancel(await text({
+      message: t('mergeAskDelay'),
+      initialValue: nextDelayMs.toString(),
+      validate(value) {
+        if (value && isNaN(Number.parseInt(value, 10))) return t('validNumber');
+      }
+    }));
+
+    nextDelayMs = Number.parseInt(delayStr, 10) || 0;
+  } else {
+    nextDelayMs = 0;
+  }
+
+  nextApplyShortest = onCancel(await confirm({
+    message: t('mergeStrictCut'),
+    initialValue: nextApplyShortest
+  }));
+
+  return {
+    currentDelayMs: nextDelayMs,
+    applyShortest: nextApplyShortest
+  };
+}
+
+function applySyncState(state: MergeSessionState, syncState: MergeSyncState) {
+  state.currentDelayMs = syncState.currentDelayMs;
+  state.applyShortest = syncState.applyShortest;
+}
+
+function buildLoopContext(media: MergeMediaContext, state: MergeSessionState): MergeLoopContext {
+  return {
+    ffmpegCmd: buildMergeCommand(
+      state.selectedStreams,
+      media.infoA,
+      media.infoB,
+      fallbackRules,
+      media.sourcePathA,
+      media.sourcePathB,
+      media.outputPath,
+      state.currentDelayMs,
+      state.applyShortest,
+      false
+    ),
+    ffmpegRepairCmd: buildMergeCommand(
+      state.selectedStreams,
+      media.infoA,
+      media.infoB,
+      fallbackRules,
+      media.sourcePathA,
+      media.sourcePathB,
+      media.outputPath,
+      state.currentDelayMs,
+      state.applyShortest,
+      true
+    ),
+    totalDuration: media.totalDuration,
+    totalFrames: media.totalFrames,
+    fullScanInputs: [media.sourcePathA, media.sourcePathB],
+    fullScanMaps: buildFullScanMaps(media)
+  };
+}
+
+function buildFullScanMaps(media: MergeMediaContext) {
+  return [
+    ...buildSourceScanMaps(media.infoA, 0),
+    ...buildSourceScanMaps(media.infoB, 1)
+  ];
+}
+
+function buildSourceScanMaps(probeData: FFprobeData, fileIndex: number) {
+  return probeData.streams
+    .filter((stream) => stream.codec_type === 'video' || stream.codec_type === 'audio')
+    .map((stream) => `${fileIndex}:${stream.index}`);
+}
+
+function showCommandPreview(context: MergeLoopContext, state: MergeSessionState) {
+  const syncMsg = state.currentDelayMs !== 0 ? pc.dim(t('syncAdjusted', state.currentDelayMs)) : '';
+  const cutMsg = state.applyShortest ? pc.yellow(t('strictCut')) : '';
+  const hasSubs = state.selectedStreams.some((stream) => stream.type === 'subtitle');
+
+  if (state.currentDelayMs !== 0 && hasSubs) {
+    log.info(pc.cyan(t('syncWarning')));
+  }
+
+  note(pc.yellow(context.ffmpegCmd), `${t('mergeCmdSuggested')}${syncMsg}${cutMsg}`);
 }

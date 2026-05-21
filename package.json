@@ -4,6 +4,10 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "test:coverage": "bun test src --coverage --coverage-reporter=lcov",
+    "test:e2e": "bun run tests/helpers/setup-fixtures.ts && bun test tests/e2e"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
@@ -12,7 +16,6 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.2.0",
-    "picocolors": "^1.1.1",
-    "yaml": "^2.8.3"
+    "picocolors": "^1.1.1"
   }
 }

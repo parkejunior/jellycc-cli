@@ -1,11 +1,16 @@
-import { select, outro, cancel, isCancel } from '@clack/prompts';
+import { select, outro } from '@clack/prompts';
 import pc from 'picocolors';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { setLanguage, availableLanguages, t } from '../utils/i18n.ts';
+import { onCancel } from '../utils/ui.ts';
+import { JellyError } from '../utils/errors.ts';
+import type { FallbackRules } from '../types/config';
 
-import fallbackRules from '../config/fallback_rules.yaml';
+import fallbackRulesData from '../config/fallback_rules.yaml';
+
+const fallbackRules = fallbackRulesData as FallbackRules;
 
 const displayNames: Record<string, string> = {
   'pt-BR': '🇧🇷 Português (Brasil)',
@@ -23,10 +28,7 @@ function ensureConfigDirAndMigrate() {
   }
 
   if (fs.existsSync(OLD_CONFIG_PATH) && !fs.existsSync(NEW_CONFIG_PATH)) {
-    try {
-      fs.renameSync(OLD_CONFIG_PATH, NEW_CONFIG_PATH);
-    } catch (e) {
-    }
+    fs.renameSync(OLD_CONFIG_PATH, NEW_CONFIG_PATH);
   }
 }
 
@@ -45,22 +47,16 @@ async function promptLanguage() {
     value: lang
   }));
 
-  const selectedLang = await select({
+  const selectedLang = onCancel(await select({
     message: t('langSelect'),
     options: options
-  });
-
-  if (isCancel(selectedLang)) {
-    cancel(t('cancel'));
-    process.exit(0);
-  }
+  }));
 
   try {
     setLanguage(selectedLang as string);
     outro(pc.green(t('langChanged')));
-  } catch (err) {
-    cancel(pc.red(t('langError')));
-    process.exit(1);
+  } catch {
+    throw new JellyError(t('langError'), 'LANG_SAVE_ERROR');
   }
 }
 
@@ -75,25 +71,28 @@ export async function configCommand(args: string[]) {
   if (args.includes('--lang')) {
     const langIdx = args.indexOf('--lang') + 1;
     if (args[langIdx] && availableLanguages.includes(args[langIdx])) {
-      setLanguage(args[langIdx]);
+      try {
+        setLanguage(args[langIdx]);
+      } catch {
+        throw new JellyError(t('langError'), 'LANG_SAVE_ERROR');
+      }
       outro(pc.green(`${t('langChangedTo')} ${args[langIdx]}`));
       return;
     }
   }
 
   // Interactive Menu 
-  const action = await select({
+  const action = onCancel(await select({
     message: pc.bold(t('whatToDo')),
     options: [
       { label: t('configMenuLang'), value: 'lang' },
       { label: t('configMenuInit'), value: 'init' },
       { label: t('exit'), value: 'exit' }
     ]
-  });
+  }));
 
-  if (isCancel(action) || action === 'exit') {
-    cancel(t('cancel'));
-    process.exit(0);
+  if (action === 'exit') {
+    return;
   }
 
   if (action === 'lang') {
