@@ -9,7 +9,10 @@ export const isImageSubtitle = (codecName: string | undefined): boolean => {
 };
 
 export const isAttachedPic = (stream: Pick<MediaStream, 'disposition' | 'codec_name'>): boolean => {
-  return stream.disposition?.attached_pic === 1 || ATTACHED_PIC_CODECS.has(stream.codec_name.toLowerCase());
+  return (
+    stream.disposition?.attached_pic === 1 || 
+    (!!stream.codec_name && ATTACHED_PIC_CODECS.has(stream.codec_name.toLowerCase()))
+  );
 };
 
 export const isGarbageStream = (stream: MediaStream): boolean => {
