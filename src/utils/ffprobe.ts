@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { spinner } from '@clack/prompts';
 import pc from 'picocolors';
 import { t } from './i18n.ts';
@@ -9,7 +9,16 @@ export function runQuickScan(videoPath: string) {
   const qsSpinner = spinner();
   qsSpinner.start(t('scanQuickStart'));
   try {
-    execSync(`ffprobe -v error -show_entries format -of default=noprint_wrappers=1 "${videoPath}"`, { stdio: 'pipe' });
+    execFileSync(
+      'ffprobe',
+      [
+        '-v', 'error',
+        '-show_entries', 'format',
+        '-of', 'default=noprint_wrappers=1',
+        videoPath
+      ],
+      { stdio: 'pipe' }
+    );
     qsSpinner.stop(pc.green(t('scanQuickPass')));
   } catch (err) {
     qsSpinner.stop(pc.red(t('scanQuickFail')));
@@ -25,9 +34,19 @@ export function getMediaInfo(videoPath: string): FFprobeData {
   s.start(t('scanAnalyze'));
 
   try {
-    const cmd = `ffprobe -v quiet -print_format json -show_format -show_streams "${videoPath}"`;
-    const result = execSync(cmd, { encoding: 'utf-8' });
-    const probeData = JSON.parse(result) as FFprobeData;
+    const resultBuffer = execFileSync(
+      'ffprobe',
+      [
+        '-v', 'quiet',
+        '-print_format', 'json',
+        '-show_format',
+        '-show_streams',
+        videoPath
+      ],
+      { encoding: 'utf-8' }
+    );
+    
+    const probeData = JSON.parse(resultBuffer as string) as FFprobeData;
     s.stop(t('scanAnalyzeDone'));
     return probeData;
   } catch (err) {

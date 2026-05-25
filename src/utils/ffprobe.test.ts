@@ -11,20 +11,20 @@ mock.module('@clack/prompts', () => ({
 }));
 
 describe('utils/ffprobe.ts', () => {
-  const execSyncSpy = spyOn(child_process, 'execSync');
+  const execFileSyncSpy = spyOn(child_process, 'execFileSync');
 
   afterEach(() => {
-    execSyncSpy.mockClear();
+    execFileSyncSpy.mockClear();
   });
 
   test('runQuickScan should complete successfully on valid media', () => {
-    execSyncSpy.mockReturnValueOnce(Buffer.from(''));
+    execFileSyncSpy.mockReturnValueOnce(Buffer.from(''));
     
     expect(() => runQuickScan('valid.mkv')).not.toThrow();
   });
 
   test('runQuickScan should throw ValidationError when media is corrupted', () => {
-    execSyncSpy.mockImplementationOnce(() => {
+    execFileSyncSpy.mockImplementationOnce(() => {
       throw new Error('Command failed');
     });
 
@@ -47,7 +47,7 @@ describe('utils/ffprobe.ts', () => {
   });
 
   test('runQuickScan should throw JellyError when ffprobe is missing', () => {
-    execSyncSpy.mockImplementationOnce(() => {
+    execFileSyncSpy.mockImplementationOnce(() => {
       const err = new Error('spawn ENOENT');
       (err as any).code = 'ENOENT';
       throw err;
@@ -73,7 +73,7 @@ describe('utils/ffprobe.ts', () => {
 
   test('getMediaInfo should return parsed JSON data', () => {
     const mockData = { format: { format_name: 'matroska' }, streams: [] };
-    execSyncSpy.mockReturnValueOnce(Buffer.from(JSON.stringify(mockData)));
+    execFileSyncSpy.mockReturnValueOnce(Buffer.from(JSON.stringify(mockData)));
 
     const result = getMediaInfo('video.mkv');
 
@@ -84,7 +84,7 @@ describe('utils/ffprobe.ts', () => {
   });
 
   test('getMediaInfo should throw JellyError on execution failure', () => {
-    execSyncSpy.mockImplementationOnce(() => {
+    execFileSyncSpy.mockImplementationOnce(() => {
       throw new Error('Parse fail');
     });
 
