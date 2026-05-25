@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.1](https://github.com/parkejunior/jellycc-cli/compare/v0.5.0...v0.5.1) (2026-05-25)
+
+
+### Bug Fixes
+
+* add codec_name check for attached pictures ([a5d71f1](https://github.com/parkejunior/jellycc-cli/commit/a5d71f166a952861f73aeabbbdc3d5b1287b4962))
+* resolve CodeQL vulnerabilities and code quality issues ([#13](https://github.com/parkejunior/jellycc-cli/issues/13)) ([fcd839d](https://github.com/parkejunior/jellycc-cli/commit/fcd839de7f6bc402e8c3986c92d70d2448643224))
+
 ## [0.5.0](https://github.com/parkejunior/jellycc-cli/compare/v0.4.0...v0.5.0) (2026-05-21)
 
 
