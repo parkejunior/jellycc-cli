@@ -44,6 +44,17 @@ describe('utils/mediaUtils.ts', () => {
     expect(isAttachedPic(validVideo)).toBe(false);
   });
 
+  test('isAttachedPic should handle undefined or malformed codec_name safely', () => {
+    const malformedStream = { 
+      index: 6, 
+      codec_type: 'video', 
+      codec_name: undefined 
+    } as any;
+
+    expect(() => isAttachedPic(malformedStream)).not.toThrow();
+    expect(isAttachedPic(malformedStream)).toBe(false);
+  });
+
   test('isGarbageStream should group image subtitles and cover art as garbage', () => {
     expect(isGarbageStream(imageSubPGS)).toBe(true);
     expect(isGarbageStream(coverArtAttached)).toBe(true);
