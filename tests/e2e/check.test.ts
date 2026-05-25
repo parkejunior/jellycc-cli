@@ -1,17 +1,15 @@
 import fs from 'fs';
-import { describe, expect, test, afterEach, beforeAll } from 'bun:test';
+import { describe, expect, test, afterEach, beforeAll, afterAll } from 'bun:test';
 import { tmpdir } from 'os';
 import path from 'path';
 import { CliTester, Keys } from '../helpers/cli-tester.ts';
 
 describe('E2E: JellyCC Check Menu', () => {
   let cli: CliTester;
-  const fakeHome = path.join(tmpdir(), 'jellycc-test-home-check');
+  const fakeHome = fs.mkdtempSync(path.join(tmpdir(), 'jellycc-test-home-check-'));
   const fixturePath = (name: string) => path.join(process.cwd(), 'tests', 'fixtures', name);
 
   beforeAll(() => {
-    fs.rmSync(fakeHome, { recursive: true, force: true });
-
     const configDir = path.join(fakeHome, '.config', 'jellycc');
     fs.mkdirSync(configDir, { recursive: true });
     fs.writeFileSync(
@@ -27,6 +25,10 @@ describe('E2E: JellyCC Check Menu', () => {
 
   afterEach(() => {
     if (cli) cli.kill();
+  });
+
+  afterAll(() => {
+    fs.rmSync(fakeHome, { recursive: true, force: true });
   });
 
   const acceptInitialTagEditing = async (downCount: number = 2) => {

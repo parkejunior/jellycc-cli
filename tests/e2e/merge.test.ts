@@ -1,19 +1,17 @@
 import fs from 'fs';
 import { spawnSync } from 'child_process';
-import { describe, expect, test, afterEach, beforeAll } from 'bun:test';
+import { describe, expect, test, afterEach, beforeAll, afterAll } from 'bun:test';
 import { tmpdir } from 'os';
 import path from 'path';
 import { CliTester, Keys } from '../helpers/cli-tester.ts';
 
 describe('E2E: JellyCC Merge Menu', () => {
   let cli: CliTester;
-  const fakeHome = path.join(tmpdir(), 'jellycc-test-home-merge');
+  const fakeHome = fs.mkdtempSync(path.join(tmpdir(), 'jellycc-test-home-merge-'));
   const fixturePath = (name: string) => path.join(process.cwd(), 'tests', 'fixtures', name);
   const longMergeFixture = path.join(fakeHome, 'merge-long.mkv');
 
   beforeAll(() => {
-    fs.rmSync(fakeHome, { recursive: true, force: true });
-
     const configDir = path.join(fakeHome, '.config', 'jellycc');
     fs.mkdirSync(configDir, { recursive: true });
     fs.writeFileSync(
@@ -53,6 +51,10 @@ describe('E2E: JellyCC Merge Menu', () => {
 
   afterEach(() => {
     if (cli) cli.kill();
+  });
+
+  afterAll(() => {
+    fs.rmSync(fakeHome, { recursive: true, force: true });
   });
 
   const openMergePaths = async (pathA: string, pathB: string) => {

@@ -13,14 +13,14 @@ const dictionaries = {
   'en-US': enUS
 } as const;
 
-function detectLanguage(): keyof typeof dictionaries {
-  if (fs.existsSync(CONFIG_PATH)) {
-    try {
-      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')) as Partial<UserSettings>;
-      if (config.lang && config.lang in dictionaries) {
-        return config.lang;
-      }
-    } catch (e) {}
+export function detectLanguage(): keyof typeof dictionaries {
+  try {
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')) as Partial<UserSettings>;
+    if (config.lang && config.lang in dictionaries) {
+      return config.lang;
+    }
+  } catch (e) {
+    // Ignored: File doesn't exist or JSON is invalid
   }
 
   const sysLocale = Intl.DateTimeFormat().resolvedOptions().locale;
@@ -48,15 +48,16 @@ export function setLanguage(lang: string) {
   if (!(lang in dictionaries)) throw new Error(`Idioma ${lang} não suportado.`);
   
   let config: Partial<UserSettings> = {};
-  if (fs.existsSync(CONFIG_PATH)) {
-    try {
-      config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')) as Partial<UserSettings>;
-    } catch (e) {
-      config = {};
-    }
+  
+  try {
+    config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')) as Partial<UserSettings>;
+  } catch (e) {
+    config = {};
   }
   
   config.lang = lang as UserSettings['lang'];
+  
+  fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
 }
 
