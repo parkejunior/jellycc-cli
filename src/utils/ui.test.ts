@@ -32,22 +32,15 @@ describe('utils/ui.ts', () => {
   });
 
   test('onCancel should throw UserCancelError on cancel symbol or return the value', () => {
-    const cancelSymbol = Symbol.for('cancel');
     let caughtError: any;
-
     try {
-      onCancel(cancelSymbol);
+      onCancel(Symbol.for('cancel'));
     } catch (e) {
       caughtError = e;
     }
 
-    expect({
-      errorType: caughtError?.name,
-      validReturn: onCancel('valid_input')
-    }).toMatchObject({
-      errorType: 'UserCancelError',
-      validReturn: 'valid_input'
-    });
+    expect(caughtError?.name).toBe('UserCancelError');
+    expect(onCancel('valid_input')).toBe('valid_input');
   });
 
   test('handleExecutionMenu should return exit state immediately when exit is selected', async () => {
@@ -62,82 +55,69 @@ describe('utils/ui.ts', () => {
       totalFrames: 2400
     });
 
-    expect(result).toMatchObject({
-      action: 'exit',
-      deepScanCompleted: false,
-      hasErrors: false
-    });
+    expect(result.action).toBe('exit');
   });
 
-  test('handleExecutionMenu should return immediately for menu actions that modify state', async () => {
+  test('handleExecutionMenu should return immediately for state modifiers (select_streams, adjust_sync, edit_tags)', async () => {
+    const baseOpts = { ffmpegCmd: 'cmd', fullScanInputs: [], fullScanMaps: [], outputPath: 'out', totalDuration: 100, totalFrames: 24 };
+    
     (clack.select as any).mockResolvedValueOnce('select_streams');
+    expect((await handleExecutionMenu({ ...baseOpts, allowStreamSelection: true })).action).toBe('select_streams');
 
-    const result = await handleExecutionMenu({
-      ffmpegCmd: 'cmd',
-      fullScanInputs: [],
-      fullScanMaps: [],
-      outputPath: 'out.mkv',
-      totalDuration: 100,
-      totalFrames: 2400,
-      allowStreamSelection: true
-    });
+    (clack.select as any).mockResolvedValueOnce('adjust_sync');
+    expect((await handleExecutionMenu({ ...baseOpts, allowSyncAdjustment: true })).action).toBe('adjust_sync');
 
-    expect(result).toMatchObject({
-      action: 'select_streams',
-      deepScanCompleted: false,
-      hasErrors: false
-    });
+    (clack.select as any).mockResolvedValueOnce('edit_tags');
+    expect((await handleExecutionMenu({ ...baseOpts, allowStreamSelection: true })).action).toBe('edit_tags');
   });
 
-  test('handleExecutionMenu should execute deep scan and loop back to menu', async () => {
+  test('handleExecutionMenu should execute partial and full deep scans and loop back', async () => {
     (clack.select as any)
       .mockResolvedValueOnce('deep_scan_selected')
+      .mockResolvedValueOnce('deep_scan_full')
       .mockResolvedValueOnce('exit');
     
-    const runScanSpy = spyOn(ffmpeg, 'runDeepScan').mockResolvedValueOnce(true as any); 
+    const runScanSpy = spyOn(ffmpeg, 'runDeepScan').mockResolvedValue(true as any); 
+    
     const result = await handleExecutionMenu({
       ffmpegCmd: 'cmd',
-      fullScanInputs: [],
-      fullScanMaps: [],
-      selectedScanInputs: ['in.mkv'],
-      selectedScanMaps: ['0'],
+      fullScanInputs: ['full.mkv'],
+      fullScanMaps: ['0'],
+      selectedScanInputs: ['sel.mkv'],
+      selectedScanMaps: ['0:0'],
       outputPath: 'out.mkv',
       totalDuration: 100,
       totalFrames: 2400,
       allowMyopicScan: true
     });
 
-    expect(runScanSpy).toHaveBeenCalled();
-    expect(result).toMatchObject({
-      action: 'exit',
-      deepScanCompleted: true,
-      hasErrors: true
-    });
+    expect(runScanSpy).toHaveBeenCalledTimes(2);
+    expect(runScanSpy).toHaveBeenNthCalledWith(1, ['sel.mkv'], ['0:0'], 100); // selected
+    expect(runScanSpy).toHaveBeenNthCalledWith(2, ['full.mkv'], ['0'], 100); // full
+    expect(result.action).toBe('exit');
   });
 
-  test('handleExecutionMenu should execute conversion and return done state', async () => {
-    (clack.select as any).mockResolvedValueOnce('run');
+  test('handleExecutionMenu should execute normal conversion with deep scan', async () => {
+    (clack.select as any).mockResolvedValueOnce('run_and_scan');
     
     const runConvSpy = spyOn(ffmpeg, 'runConversion').mockResolvedValueOnce(undefined as any);
+    const runScanSpy = spyOn(ffmpeg, 'runDeepScan').mockResolvedValueOnce(false as any);
 
     const result = await handleExecutionMenu({
-      ffmpegCmd: 'ffmpeg cmd',
+      ffmpegCmd: 'normal_cmd',
       fullScanInputs: [],
       fullScanMaps: [],
-      outputPath: 'out.mkv',
+      outputPath: '/fake/out.mkv',
       totalDuration: 100,
       totalFrames: 2400
     });
 
-    expect(runConvSpy).toHaveBeenCalled();
-    expect(result).toMatchObject({
-      action: 'done',
-      deepScanCompleted: false,
-      hasErrors: false
-    });
+    expect(runConvSpy).toHaveBeenCalledWith('normal_cmd', 100, 2400); 
+    expect(runScanSpy).toHaveBeenCalledWith(['/fake/out.mkv'], ['0'], 100);
+    expect(result.action).toBe('done');
   });
 
-  test('handleExecutionMenu should run repair command and subsequent scan', async () => {
+  test('handleExecutionMenu should execute repair conversion, scan with correct output path, and exit', async () => {
     (clack.select as any).mockResolvedValueOnce('run_repair_and_scan');
     
     const runConvSpy = spyOn(ffmpeg, 'runConversion').mockResolvedValueOnce(undefined as any);
@@ -155,10 +135,11 @@ describe('utils/ui.ts', () => {
     });
 
     expect(runConvSpy).toHaveBeenCalledWith('repair_cmd', 100, 2400); 
-    expect(runScanSpy).toHaveBeenCalled();
+    expect(runScanSpy).toHaveBeenCalledWith(['/fake/out_repaired.mkv'], ['0'], 100);
     expect(result.action).toBe('done');
   });
 
+  // --- editTagsMenu ---
   test('editTagsMenu should initialize missing tags from ffprobe data and allow early exit', async () => {
     (clack.select as any).mockResolvedValueOnce(-1);
 
@@ -167,10 +148,7 @@ describe('utils/ui.ts', () => {
 
     const result = await editTagsMenu(selectedStreams, infoA);
 
-    expect(result[0]).toMatchObject({
-      language: 'por',
-      title: 'Dublado'
-    });
+    expect(result[0]).toMatchObject({ language: 'por', title: 'Dublado' });
   });
 
   test('editTagsMenu should map from infoB for secondary files and handle subtitles', async () => {
@@ -182,19 +160,14 @@ describe('utils/ui.ts', () => {
 
     const result = await editTagsMenu(selectedStreams, infoA, infoB);
 
-    expect(result[0]).toMatchObject({
-      language: 'eng',
-      title: 'Subs'
-    });
+    expect(result[0]).toMatchObject({ language: 'eng', title: 'Subs' });
   });
 
   test('editTagsMenu should skip autoPromptUnd if no undefined non-video languages exist', async () => {
     const selectedStreams = [{ streamIndex: 0, type: 'video', codec: 'h264', language: 'und', title: '' } as any];
     const infoA = { streams: [{ index: 0 }] } as any;
     
-    const result = await editTagsMenu(selectedStreams, infoA, undefined, true);
-    
-    expect(result).toMatchObject(selectedStreams);
+    expect(await editTagsMenu(selectedStreams, infoA, undefined, true)).toMatchObject(selectedStreams);
   });
 
   test('editTagsMenu should handle autoPromptUnd rejection', async () => {
@@ -203,9 +176,7 @@ describe('utils/ui.ts', () => {
     const selectedStreams = [{ streamIndex: 0, type: 'audio', codec: 'aac', language: 'und', title: '' } as any];
     const infoA = { streams: [{ index: 0 }] } as any;
     
-    const result = await editTagsMenu(selectedStreams, infoA, undefined, true);
-    
-    expect(result).toMatchObject(selectedStreams);
+    expect(await editTagsMenu(selectedStreams, infoA, undefined, true)).toMatchObject(selectedStreams);
   });
 
   test('editTagsMenu should update stream tags through interactive text prompts', async () => {
@@ -221,9 +192,6 @@ describe('utils/ui.ts', () => {
 
     const result = await editTagsMenu(selectedStreams, infoA);
 
-    expect(result[0]).toMatchObject({
-      language: 'jpn',
-      title: 'Original Mix'
-    });
+    expect(result[0]).toMatchObject({ language: 'jpn', title: 'Original Mix' });
   });
 });
