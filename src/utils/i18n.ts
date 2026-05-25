@@ -13,7 +13,7 @@ const dictionaries = {
   'en-US': enUS
 } as const;
 
-function detectLanguage(): keyof typeof dictionaries {
+export function detectLanguage(): keyof typeof dictionaries {
   try {
     const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')) as Partial<UserSettings>;
     if (config.lang && config.lang in dictionaries) {

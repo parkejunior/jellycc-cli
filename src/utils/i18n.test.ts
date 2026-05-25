@@ -1,6 +1,6 @@
 import { describe, expect, test, spyOn } from 'bun:test';
 import fs from 'fs';
-import { t, setLanguage, availableLanguages } from './i18n.ts';
+import { t, setLanguage, availableLanguages, detectLanguage } from './i18n.ts';
 
 describe('utils/i18n.ts', () => {
   test('availableLanguages should expose only supported locales', () => {
@@ -37,5 +37,12 @@ describe('utils/i18n.ts', () => {
     });
 
     writeSpy.mockRestore();
+  });
+
+  test('detectLanguage should return lang from config file if valid', () => {
+    const readSpy = spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify({ lang: 'pt-BR' }));
+    
+    expect(detectLanguage()).toBe('pt-BR');
+    readSpy.mockRestore();
   });
 });
