@@ -208,7 +208,12 @@ export async function runConversion(ffmpegCmd: string, totalDurationSec: number,
  * Executes a Silence Scan to detect accidentally muted tracks or dropped audio.
  * Uses a default threshold of -50dB and 2 seconds of minimum duration.
  */
-export async function runSilenceScan(inputs: string[], maps: string[], totalDurationSec: number): Promise<boolean> {
+export async function runSilenceScan(
+  inputs: string[], 
+  maps: string[], 
+  totalDurationSec: number, 
+  trackLabels?: string[]
+): Promise<boolean> {
   console.log('');
   const scanSpinner = spinner();
   scanSpinner.start(t('scanSilenceStart'));
@@ -222,8 +227,11 @@ export async function runSilenceScan(inputs: string[], maps: string[], totalDura
 
     const ff = spawn('ffmpeg', ffmpegArgs);
     let stderrBuffer = '';
+
+    const results: Array<{ trackIdx: number, start: number, duration: number }> = [];
     
-    const results: Array<{ addr: string, start: number, duration: number }> = [];
+    let nextTrackIdx = 0;
+    const addressToTrackIdx = new Map<string, number>();
     const currentStarts = new Map<string, number>(); 
 
     ff.stderr.on('data', (data) => {
@@ -251,6 +259,11 @@ export async function runSilenceScan(inputs: string[], maps: string[], totalDura
         const startMatch = line.match(/silencedetect.*@\s+(0x[0-9a-fA-F]+)\].*?silence_start:\s*([\d.]+)/);
         if (startMatch) {
           const addr = startMatch[1]!;
+          
+          if (!addressToTrackIdx.has(addr)) {
+            addressToTrackIdx.set(addr, nextTrackIdx++);
+          }
+          
           currentStarts.set(addr, Number.parseFloat(startMatch[2]!));
         }
 
@@ -258,8 +271,10 @@ export async function runSilenceScan(inputs: string[], maps: string[], totalDura
         if (durationMatch) {
           const addr = durationMatch[1]!;
           const cStart = currentStarts.get(addr);
-          if (cStart !== undefined) {
-            results.push({ addr, start: cStart, duration: Number.parseFloat(durationMatch[2]!) });
+          const trackIdx = addressToTrackIdx.get(addr);
+          
+          if (cStart !== undefined && trackIdx !== undefined) {
+            results.push({ trackIdx, start: cStart, duration: Number.parseFloat(durationMatch[2]!) });
             currentStarts.delete(addr);
           }
         }
@@ -275,21 +290,23 @@ export async function runSilenceScan(inputs: string[], maps: string[], totalDura
       if (results.length > 0) {
         scanSpinner.stop(pc.yellow(t('scanSilenceWarn')));
 
-        const grouped = new Map<string, Array<{start: number, duration: number}>>();
+        const grouped = new Map<number, Array<{start: number, duration: number}>>();
         for (const r of results) {
-           if (!grouped.has(r.addr)) grouped.set(r.addr, []);
-           grouped.get(r.addr)!.push(r);
+           if (!grouped.has(r.trackIdx)) grouped.set(r.trackIdx, []);
+           grouped.get(r.trackIdx)!.push(r);
         }
 
         let msg = '';
-        let trackCounter = 1;
-        for (const [addr, items] of grouped.entries()) {
-           msg += `${msg ? '\n\n' : ''}${pc.bold(`🎧 Trilha Afetada #${trackCounter}`)}`;
+        const sortedGroups = Array.from(grouped.entries()).sort((a, b) => a[0] - b[0]);
+        
+        for (const [tIdx, items] of sortedGroups) {
+           const langLabel = trackLabels && trackLabels[tIdx] ? ` [${trackLabels[tIdx]}]` : '';
+           msg += `${msg ? '\n\n' : ''}${pc.bold(`🎧 Trilha Afetada #${tIdx + 1}${langLabel}`)}`;
+           
            items.forEach(item => {
               const durText = t('scanSilenceItem', item.duration.toFixed(2));
               msg += `\n  • ${formatSecondsToTimestamp(item.start)} ${pc.dim(durText)}`;
            });
-           trackCounter++;
         }
 
         note(msg);

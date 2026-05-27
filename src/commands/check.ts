@@ -36,9 +36,11 @@ interface CheckLoopContext {
   fullScanInputs: string[];
   fullScanMaps: string[];
   fullAudioScanMaps: string[];
+  fullAudioScanLabels: string[];
   selectedScanInputs: string[];
   selectedScanMaps: string[];
   selectedAudioScanMaps: string[];
+  selectedAudioScanLabels: string[];
 }
 
 export async function checkCommand(args: string[]) {
@@ -72,9 +74,11 @@ export async function checkCommand(args: string[]) {
       fullScanInputs: context.fullScanInputs,
       fullScanMaps: context.fullScanMaps,
       fullAudioScanMaps: context.fullAudioScanMaps,
+      fullAudioScanLabels: context.fullAudioScanLabels,
       selectedScanInputs: context.selectedScanInputs,
       selectedScanMaps: context.selectedScanMaps,
       selectedAudioScanMaps: context.selectedAudioScanMaps,
+      selectedAudioScanLabels: context.selectedAudioScanLabels,
       outputPath,
       totalDuration: context.totalDuration,
       totalFrames: context.totalFrames,
@@ -215,9 +219,11 @@ function buildLoopContext(
     fullScanInputs: [targetFile],
     fullScanMaps: ['0'],
     fullAudioScanMaps: probeData.streams.filter(s => s.codec_type === 'audio').map(s => `0:${s.index}`),
+    fullAudioScanLabels: probeData.streams.filter(s => s.codec_type === 'audio').map(s => (s.tags?.language || 'und').toUpperCase()),
     selectedScanInputs: [targetFile],
     selectedScanMaps: selectedStreams.map((stream) => `0:${stream.streamIndex}`),
-    selectedAudioScanMaps: selectedStreams.filter(s => s.type === 'audio').map(s => `0:${s.streamIndex}`)
+    selectedAudioScanMaps: selectedStreams.filter(s => s.type === 'audio').map(s => `0:${s.streamIndex}`),
+    selectedAudioScanLabels: selectedStreams.filter(s => s.type === 'audio').map(s => (s.language || 'und').toUpperCase())
   };
 }
 

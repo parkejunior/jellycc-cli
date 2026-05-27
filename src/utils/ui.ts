@@ -27,9 +27,11 @@ export async function handleExecutionMenu(options: {
   fullScanInputs: string[];
   fullScanMaps: string[];
   fullAudioScanMaps?: string[];
+  fullAudioScanLabels?: string[];
   selectedScanInputs?: string[];
   selectedScanMaps?: string[];
   selectedAudioScanMaps?: string[];
+  selectedAudioScanLabels?: string[];
   outputPath: string;
   totalDuration: number;
   totalFrames: number;
@@ -95,7 +97,7 @@ export async function handleExecutionMenu(options: {
       const dsErrors = await runDeepScan(options.selectedScanInputs!, options.selectedScanMaps!, options.totalDuration);
       let silenceErrors = false;
       if (options.selectedAudioScanMaps && options.selectedAudioScanMaps.length > 0) {
-        silenceErrors = await runSilenceScan(options.selectedScanInputs!, options.selectedAudioScanMaps, options.totalDuration);
+        silenceErrors = await runSilenceScan(options.selectedScanInputs!, options.selectedAudioScanMaps, options.totalDuration, options.selectedAudioScanLabels);
       }
       fileHasErrors = fileHasErrors || dsErrors || silenceErrors;
       dsCompleted = true;
@@ -106,7 +108,7 @@ export async function handleExecutionMenu(options: {
       const dsErrors = await runDeepScan(options.fullScanInputs, options.fullScanMaps, options.totalDuration);
       let silenceErrors = false;
       if (options.fullAudioScanMaps && options.fullAudioScanMaps.length > 0) {
-        silenceErrors = await runSilenceScan(options.fullScanInputs, options.fullAudioScanMaps, options.totalDuration);
+        silenceErrors = await runSilenceScan(options.fullScanInputs, options.fullAudioScanMaps, options.totalDuration, options.fullAudioScanLabels);
       }
       fileHasErrors = fileHasErrors || dsErrors || silenceErrors;
       dsCompleted = true;
@@ -116,9 +118,10 @@ export async function handleExecutionMenu(options: {
     if (action === 'silence_scan') {
       const inputs = options.selectedScanInputs || options.fullScanInputs;
       const audioMaps = options.selectedAudioScanMaps || options.fullAudioScanMaps || [];
-      
+      const audioLabels = options.selectedAudioScanLabels || options.fullAudioScanLabels || [];
+
       if (audioMaps.length > 0) {
-        const silenceErrors = await runSilenceScan(inputs, audioMaps, options.totalDuration);
+        const silenceErrors = await runSilenceScan(inputs, audioMaps, options.totalDuration, audioLabels);
         fileHasErrors = fileHasErrors || silenceErrors;
       } else {
         const scanSpinner = spinner();
@@ -150,7 +153,7 @@ export async function handleExecutionMenu(options: {
         let silenceErrors = false;
         
         if (options.selectedAudioScanMaps && options.selectedAudioScanMaps.length > 0) {
-          silenceErrors = await runSilenceScan([actualOutputPath], ['0:a?'], options.totalDuration);
+          silenceErrors = await runSilenceScan([actualOutputPath], ['0:a?'], options.totalDuration, options.selectedAudioScanLabels);
         }
         
         fileHasErrors = fileHasErrors || dsErrors || silenceErrors;

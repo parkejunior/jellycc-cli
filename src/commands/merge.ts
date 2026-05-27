@@ -57,7 +57,9 @@ interface MergeLoopContext {
   fullScanInputs: string[];
   fullScanMaps: string[];
   fullAudioScanMaps: string[];
+  fullAudioScanLabels: string[];
   selectedAudioScanMaps: string[];
+  selectedAudioScanLabels: string[];
 }
 
 export async function mergeCommand(_args: string[]) {
@@ -90,7 +92,9 @@ export async function mergeCommand(_args: string[]) {
       fullScanInputs: context.fullScanInputs,
       fullScanMaps: context.fullScanMaps,
       fullAudioScanMaps: context.fullAudioScanMaps,
+      fullAudioScanLabels: context.fullAudioScanLabels,
       selectedAudioScanMaps: context.selectedAudioScanMaps,
+      selectedAudioScanLabels: context.selectedAudioScanLabels,
       outputPath: media.outputPath,
       totalDuration: context.totalDuration,
       totalFrames: context.totalFrames,
@@ -348,7 +352,9 @@ function buildLoopContext(media: MergeMediaContext, state: MergeSessionState): M
     fullScanInputs: [media.sourcePathA, media.sourcePathB],
     fullScanMaps: buildFullScanMaps(media),
     fullAudioScanMaps: buildFullAudioScanMaps(media),
-    selectedAudioScanMaps: state.selectedStreams.filter(s => s.type === 'audio').map(s => `${s.fileIndex}:${s.streamIndex}`)
+    fullAudioScanLabels: buildFullAudioScanLabels(media),
+    selectedAudioScanMaps: state.selectedStreams.filter(s => s.type === 'audio').map(s => `${s.fileIndex}:${s.streamIndex}`),
+    selectedAudioScanLabels: state.selectedStreams.filter(s => s.type === 'audio').map(s => (s.language || 'und').toUpperCase())
   };
 }
 
@@ -363,6 +369,13 @@ function buildFullAudioScanMaps(media: MergeMediaContext) {
   return [
     ...media.infoA.streams.filter((stream) => stream.codec_type === 'audio').map((stream) => `0:${stream.index}`),
     ...media.infoB.streams.filter((stream) => stream.codec_type === 'audio').map((stream) => `1:${stream.index}`)
+  ];
+}
+
+function buildFullAudioScanLabels(media: MergeMediaContext) {
+  return [
+    ...media.infoA.streams.filter((stream) => stream.codec_type === 'audio').map((stream) => (stream.tags?.language || 'und').toUpperCase()),
+    ...media.infoB.streams.filter((stream) => stream.codec_type === 'audio').map((stream) => (stream.tags?.language || 'und').toUpperCase())
   ];
 }
 
