@@ -1,9 +1,10 @@
 import { spawn } from 'child_process';
-import { spinner } from '@clack/prompts';
+import { log, spinner } from '@clack/prompts';
 import pc from 'picocolors';
 import { t } from './i18n.ts';
 import { JellyError } from './errors.ts';
 import type { MediaStream } from '../types/media';
+import { formatSecondsToTimestamp } from './formatters.ts';
 
 export function parseFfmpegTime(timeStr: string) {
   const parts = timeStr.split(':');
@@ -190,6 +191,72 @@ export async function runConversion(ffmpegCmd: string, totalDurationSec: number,
     ff.on('error', (err: Error) => {
       convSpinner.stop(pc.red(t('convStartFail', err.message)));
       reject(new JellyError(t('convStartFail', err.message), 'FFMPEG_START_FAILED'));
+    });
+  });
+}
+
+/**
+ * Executes a Silence Scan to detect accidentally muted tracks or dropped audio.
+ * Uses a default threshold of -50dB and 2 seconds of minimum duration.
+ */
+export async function runSilenceScan(inputs: string[], maps: string[]): Promise<boolean> {
+  console.log('');
+  const scanSpinner = spinner();
+  scanSpinner.start(t('scanSilenceStart'));
+
+  return new Promise<boolean>((resolve) => {
+    const ffmpegArgs = ['-v', 'info'];
+    inputs.forEach(inp => { ffmpegArgs.push('-i', inp); });
+    maps.forEach(m => { ffmpegArgs.push('-map', m); });
+    
+    ffmpegArgs.push('-vn', '-af', 'silencedetect=noise=-50dB:d=2', '-f', 'null', '-');
+
+    const ff = spawn('ffmpeg', ffmpegArgs);
+    let stderrBuffer = '';
+    const results: Array<{ start: number, duration: number }> = [];
+    let currentStart: number | null = null;
+
+    ff.stderr.on('data', (data) => {
+      stderrBuffer += data.toString();
+      const lines = stderrBuffer.split(/[\r\n]+/);
+      stderrBuffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const startMatch = line.match(/silence_start:\s*([\d.]+)/);
+        if (startMatch) {
+          currentStart = Number.parseFloat(startMatch[1]!);
+        }
+
+        const durationMatch = line.match(/silence_duration:\s*([\d.]+)/);
+        if (durationMatch && currentStart !== null) {
+          results.push({ start: currentStart, duration: Number.parseFloat(durationMatch[1]!) });
+          currentStart = null;
+        }
+      }
+    });
+
+    ff.on('close', (code) => {
+      if (code !== 0) {
+        scanSpinner.stop(pc.yellow(t('scanSilenceFail')));
+        return resolve(true);
+      }
+
+      if (results.length > 0) {
+        scanSpinner.stop(pc.yellow(t('scanSilenceWarn')));
+        results.forEach(res => {
+          const timestamp = formatSecondsToTimestamp(res.start);
+          log.warn(pc.yellow(t('scanSilenceDetail', timestamp, res.duration.toFixed(2))));
+        });
+        resolve(true);
+      } else {
+        scanSpinner.stop(pc.green(t('scanSilencePass')));
+        resolve(false);
+      }
+    });
+
+    ff.on('error', () => {
+      scanSpinner.stop(pc.red(t('scanSilenceFail')));
+      resolve(true);
     });
   });
 }

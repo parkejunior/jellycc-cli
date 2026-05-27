@@ -35,8 +35,10 @@ interface CheckLoopContext {
   totalFrames: number;
   fullScanInputs: string[];
   fullScanMaps: string[];
+  fullAudioScanMaps: string[];
   selectedScanInputs: string[];
   selectedScanMaps: string[];
+  selectedAudioScanMaps: string[];
 }
 
 export async function checkCommand(args: string[]) {
@@ -69,8 +71,10 @@ export async function checkCommand(args: string[]) {
       ffmpegRepairCmd: context.ffmpegRepairCmd,
       fullScanInputs: context.fullScanInputs,
       fullScanMaps: context.fullScanMaps,
+      fullAudioScanMaps: context.fullAudioScanMaps,
       selectedScanInputs: context.selectedScanInputs,
       selectedScanMaps: context.selectedScanMaps,
+      selectedAudioScanMaps: context.selectedAudioScanMaps,
       outputPath,
       totalDuration: context.totalDuration,
       totalFrames: context.totalFrames,
@@ -210,8 +214,10 @@ function buildLoopContext(
     totalFrames: diagnostic.metadata.totalFrames,
     fullScanInputs: [targetFile],
     fullScanMaps: ['0'],
+    fullAudioScanMaps: probeData.streams.filter(s => s.codec_type === 'audio').map(s => `0:${s.index}`),
     selectedScanInputs: [targetFile],
-    selectedScanMaps: selectedStreams.map((stream) => `0:${stream.streamIndex}`)
+    selectedScanMaps: selectedStreams.map((stream) => `0:${stream.streamIndex}`),
+    selectedAudioScanMaps: selectedStreams.filter(s => s.type === 'audio').map(s => `0:${s.streamIndex}`)
   };
 }
 

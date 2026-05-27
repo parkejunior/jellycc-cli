@@ -17,6 +17,7 @@ export default {
   menuAdjustSync: '⏱️  Ajustar Sincronia / Corte Final',
   menuDeepScanFull: '🔍 Deep Scan (Todas as faixas do arquivo original)',
   menuDeepScanSelected: '🔬 Myopic Scan (Apenas faixas selecionadas)',
+  menuSilenceScan: '🔊 Silence Scan (Verificar quedas de áudio / Mudo)',
   menuRunRepairScan: '🔧 Executar Reparo Forçado + 🔍 Deep Scan',
   menuRunRepairOnly: '🔧 Executar Reparo Forçado apenas',
   menuEditTags: '🏷️  Editar Tags das Faixas (Idioma/Título)',
@@ -115,6 +116,13 @@ export default {
   convPass: '✔ Conversão finalizada com sucesso!',
   convFail: '✖ Erro durante a conversão (Código {0}).',
   convStartFail: '✖ Falha ao tentar iniciar o processo do FFmpeg: {0}',
+
+  // Silence Scan
+  scanSilenceStart: 'Procurando por quedas de áudio (Silence Scan)...',
+  scanSilencePass: '✔ Áudio íntegro: Nenhuma queda brusca detectada.',
+  scanSilenceWarn: '⚠ Atenção: Quedas de áudio detectadas!',
+  scanSilenceDetail: 'Silêncio detectado em {0} (duração: {1}s)',
+  scanSilenceFail: '✖ Falha ao executar o Silence Scan.',
 
   // Comando: Lang
   langSelect: '🌐 Selecione o idioma de sua preferência / Select your preferred language:',

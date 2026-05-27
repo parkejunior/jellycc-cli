@@ -17,6 +17,7 @@ export default {
   menuAdjustSync: '⏱️  Adjust Sync / Final Cut',
   menuDeepScanFull: '🔍 Deep Scan (All tracks from original file)',
   menuDeepScanSelected: '🔬 Myopic Scan (Selected tracks only)',
+  menuSilenceScan: '🔊 Silence Scan (Check for audio drops / Mute)',
   menuRunRepairScan: '🔧 Execute Forced Repair + 🔍 Deep Scan',
   menuRunRepairOnly: '🔧 Execute Forced Repair only',
   menuEditTags: '🏷️  Edit Track Tags (Language/Title)',
@@ -115,6 +116,13 @@ export default {
   convPass: '✔ Conversion finished successfully!',
   convFail: '✖ Error during conversion (Code {0}).',
   convStartFail: '✖ Failed to start FFmpeg process: {0}',
+
+  // Silence Scan
+  scanSilenceStart: 'Searching for audio drops (Silence Scan)...',
+  scanSilencePass: '✔ Audio intact: No sudden drops detected.',
+  scanSilenceWarn: '⚠ Warning: Audio drops detected!',
+  scanSilenceDetail: 'Silence detected at {0} (duration: {1}s)',
+  scanSilenceFail: '✖ Failed to execute Silence Scan.',
 
   // Command: Lang
   langSelect: '🌐 Select your preferred language:',

@@ -56,6 +56,8 @@ interface MergeLoopContext {
   totalFrames: number;
   fullScanInputs: string[];
   fullScanMaps: string[];
+  fullAudioScanMaps: string[];
+  selectedAudioScanMaps: string[];
 }
 
 export async function mergeCommand(_args: string[]) {
@@ -87,6 +89,8 @@ export async function mergeCommand(_args: string[]) {
       ffmpegRepairCmd: context.ffmpegRepairCmd,
       fullScanInputs: context.fullScanInputs,
       fullScanMaps: context.fullScanMaps,
+      fullAudioScanMaps: context.fullAudioScanMaps,
+      selectedAudioScanMaps: context.selectedAudioScanMaps,
       outputPath: media.outputPath,
       totalDuration: context.totalDuration,
       totalFrames: context.totalFrames,
@@ -342,7 +346,9 @@ function buildLoopContext(media: MergeMediaContext, state: MergeSessionState): M
     totalDuration: media.totalDuration,
     totalFrames: media.totalFrames,
     fullScanInputs: [media.sourcePathA, media.sourcePathB],
-    fullScanMaps: buildFullScanMaps(media)
+    fullScanMaps: buildFullScanMaps(media),
+    fullAudioScanMaps: buildFullAudioScanMaps(media),
+    selectedAudioScanMaps: state.selectedStreams.filter(s => s.type === 'audio').map(s => `${s.fileIndex}:${s.streamIndex}`)
   };
 }
 
@@ -350,6 +356,13 @@ function buildFullScanMaps(media: MergeMediaContext) {
   return [
     ...buildSourceScanMaps(media.infoA, 0),
     ...buildSourceScanMaps(media.infoB, 1)
+  ];
+}
+
+function buildFullAudioScanMaps(media: MergeMediaContext) {
+  return [
+    ...media.infoA.streams.filter((stream) => stream.codec_type === 'audio').map((stream) => `0:${stream.index}`),
+    ...media.infoB.streams.filter((stream) => stream.codec_type === 'audio').map((stream) => `1:${stream.index}`)
   ];
 }
 
