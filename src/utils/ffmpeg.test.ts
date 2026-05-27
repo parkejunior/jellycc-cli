@@ -6,7 +6,8 @@ import {
   getDynamicVideoEncoder,
   getDynamicAudioEncoder,
   runDeepScan,
-  runConversion
+  runConversion,
+  extractRawAudio
 } from './ffmpeg.ts';
 import { JellyError } from './errors.ts';
 
@@ -162,6 +163,76 @@ describe('utils/ffmpeg.ts', () => {
     }).toMatchObject({
       closeCode: 'FFMPEG_FAILED',
       errCode: 'FFMPEG_START_FAILED'
+    });
+  });
+
+  test('extractRawAudio should resolve with Float32Array on success', async () => {
+    const mockProcess = new EventEmitter() as any;
+    mockProcess.stdout = new EventEmitter();
+    mockProcess.stderr = new EventEmitter();
+    spawnSpy.mockReturnValue(mockProcess);
+
+    const extractPromise = extractRawAudio('fake.mkv', '00:00:00', 2);
+
+    const fakeData = Buffer.alloc(16);
+    fakeData.writeFloatLE(0.1, 0);
+    fakeData.writeFloatLE(0.2, 4);
+    fakeData.writeFloatLE(0.3, 8);
+    fakeData.writeFloatLE(0.4, 12);
+
+    mockProcess.stdout.emit('data', fakeData);
+    mockProcess.emit('close', 0);
+
+    const result = await extractPromise;
+    expect(result).toBeInstanceOf(Float32Array);
+    expect(result.length).toBe(4);
+    expect(result[0]).toBeCloseTo(0.1);
+  });
+
+  test('extractRawAudio should reject with JellyError on non-zero exit', async () => {
+    const mockProcess = new EventEmitter() as any;
+    mockProcess.stdout = new EventEmitter();
+    mockProcess.stderr = new EventEmitter();
+    spawnSpy.mockReturnValue(mockProcess);
+
+    const extractPromise = extractRawAudio('fake.mkv', '00:00:00', 2);
+
+    mockProcess.stderr.emit('data', Buffer.from('Extraction failed\n'));
+    mockProcess.emit('close', 1);
+
+    let caught: any;
+    try { await extractPromise; } catch (e) { caught = e; }
+
+    expect({
+      isJelly: caught instanceof JellyError,
+      code: caught?.code,
+      message: caught?.message
+    }).toMatchObject({
+      isJelly: true,
+      code: 'FFMPEG_EXTRACTION_FAILED',
+      message: expect.stringContaining('Extraction failed')
+    });
+  });
+
+  test('extractRawAudio should throw JellyError if spawn fails', async () => {
+    const mockProcess = new EventEmitter() as any;
+    mockProcess.stdout = new EventEmitter();
+    mockProcess.stderr = new EventEmitter();
+    spawnSpy.mockReturnValue(mockProcess);
+
+    const extractPromise = extractRawAudio('fake.mkv', '00:00:00', 2);
+
+    mockProcess.emit('error', new Error('ENOENT'));
+
+    let caught: any;
+    try { await extractPromise; } catch (e) { caught = e; }
+
+    expect({
+      isJelly: caught instanceof JellyError,
+      code: caught?.code
+    }).toMatchObject({
+      isJelly: true,
+      code: 'FFMPEG_START_FAILED'
     });
   });
 });

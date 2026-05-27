@@ -9,7 +9,9 @@ import {
   formatSize,
   padLabel,
   formatSubtitleCodec,
-  calculateTotalFrames
+  calculateTotalFrames,
+  parseTimestampToSeconds,
+  formatSecondsToTimestamp
 } from './formatters.ts';
 import { t } from './i18n.ts';
 import type { MediaStream } from '../types/media.d.ts';
@@ -138,6 +140,32 @@ describe('utils/formatters.ts', () => {
       fractional: 86314,
       decimal: 2500,
       missing: 0
+    });
+  });
+
+  test('parseTimestampToSeconds should correctly parse HH:MM:SS, MM:SS and SS', () => {
+    expect({
+      full: parseTimestampToSeconds('00:15:30'),
+      partial: parseTimestampToSeconds('15:30'),
+      secondsOnly: parseTimestampToSeconds('45'),
+      invalid: parseTimestampToSeconds('invalid')
+    }).toMatchObject({
+      full: 930,
+      partial: 930,
+      secondsOnly: 45,
+      invalid: 0
+    });
+  });
+
+  test('formatSecondsToTimestamp should format seconds to HH:MM:SS padding zeros', () => {
+    expect({
+      full: formatSecondsToTimestamp(930),
+      short: formatSecondsToTimestamp(1),
+      hours: formatSecondsToTimestamp(3665)
+    }).toMatchObject({
+      full: '00:15:30',
+      short: '00:00:01',
+      hours: '01:01:05'
     });
   });
 });
