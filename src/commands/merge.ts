@@ -239,6 +239,8 @@ async function promptSyncAdjustment(
   let nextApplyShortest = currentState.applyShortest;
 
   if (chosenSyncAction === 'spectrum') {
+    log.info(pc.cyan(t('mergeSpectrumHint')));
+    
     const tsStr = onCancel(await text({
       message: t('mergeAskTimestamp'),
       placeholder: '00:15:30',
@@ -247,16 +249,9 @@ async function promptSyncAdjustment(
       }
     }));
 
-    const windowStr = onCancel(await text({
-      message: t('mergeAskWindow'),
-      initialValue: '30',
-      validate(value) {
-        if (value && isNaN(Number.parseInt(value, 10))) return t('validNumber');
-      }
-    }));
-
-    const durB = Number.parseInt(windowStr, 10) || 30;
+    // 10s of sample window to 30s search window
     const durA = 10;
+    const durB = 30; 
 
     const tsSecs = parseTimestampToSeconds(tsStr);
     const tsBSecs = Math.max(0, tsSecs - 10); // Starts 10s before the timestamp
@@ -266,7 +261,6 @@ async function promptSyncAdjustment(
     s.start(t('mergeSpectrumExtracting'));
 
     try {
-      // Extração simultânea bloqueante (mas performática)
       const bufferA = await extractRawAudio(media.sourcePathA, tsStr, durA);
       const bufferB = await extractRawAudio(media.sourcePathB, startTsB, durB);
 
@@ -274,10 +268,13 @@ async function promptSyncAdjustment(
 
       const rawOffsetMs = calculateSpectrumDelay(bufferA, bufferB);
       const diffSecs = tsSecs - tsBSecs;
+      
       const realDelayMs = rawOffsetMs - (diffSecs * 1000);
       nextDelayMs = Math.round(realDelayMs * -1);
 
       s.stop(pc.green(t('successOp')));
+      log.success(pc.green(t('mergeSpectrumResult', nextDelayMs)));
+      
     } catch (err) {
       s.stop(pc.red(t('mergeSpectrumFailed')));
       if (err instanceof Error) {

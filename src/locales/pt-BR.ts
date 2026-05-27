@@ -79,7 +79,7 @@ export default {
   mergeNone: 'Nenhuma',
   mergeSelectStreams: 'Selecione as faixas que deseja manter',
   mergeHowToSync: 'Como deseja ajustar a sincronia do Arquivo B?',
-  mergeAutoSync: '⏭️  Auto-alinhar ({0} para igualar ao Arquivo A)',
+  mergeAutoSync: '⏭️  Igualar Durações (Aplicar {0} para igualar ao Arquivo A)',
   mergeManualSync: '✏️  Digitar valor manualmente',
   mergeNoSync: '❌  Não ajustar (0ms)',
   mergeAskDelay: 'Informe o atraso do Arquivo B em milissegundos (ex: 2000 para atrasar 2s, -500 para adiantar 0.5s):',
@@ -89,9 +89,10 @@ export default {
   mergeCmdSuggested: 'Comando FFmpeg Sugerido (Merge)',
 
   // Command: Merge (Spectrum Sync)
-  mergeSpectrumSync: '🎶 Sincronizar por Espectro de Áudio (Automático)',
-  mergeAskTimestamp: 'Digite o momento do filme A sem falas (ex: 00:15:30):',
-  mergeAskWindow: 'Tamanho da janela de busca no filme B em segundos (Padrão: 30):',
+  mergeSpectrumSync: '🎶 Smart Spectrum Sync (Auto-alinhamento por áudio)',
+  mergeAskTimestamp: 'Digite o momento do Arquivo A (Referência) para análise:',
+  mergeSpectrumHint: '💡 Dica: Escolha um momento sem falas/dublagem, de preferência com música ou sons ambientes marcantes.',
+  mergeSpectrumResult: 'Sincronia concluída! Compensação calculada: {0}ms',
   mergeSpectrumExtracting: 'Extraindo frequências de áudio para comparação...',
   mergeSpectrumCalculating: 'Calculando matriz de correlação cruzada...',
   mergeSpectrumFailed: 'Falha ao analisar espectro de áudio.',

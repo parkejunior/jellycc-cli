@@ -79,7 +79,7 @@ export default {
   mergeNone: 'None',
   mergeSelectStreams: 'Select the streams you want to keep',
   mergeHowToSync: 'How do you want to adjust the sync for File B?',
-  mergeAutoSync: '⏭️  Auto-align ({0} to match File A)',
+  mergeAutoSync: '⏭️  Match Durations ({0} offset to match File A)',
   mergeManualSync: '✏️  Enter value manually',
   mergeNoSync: '❌  Do not adjust (0ms)',
   mergeAskDelay: 'Enter the delay for File B in milliseconds (e.g., 2000 to delay 2s, -500 to advance 0.5s):',
@@ -89,9 +89,10 @@ export default {
   mergeCmdSuggested: 'Suggested FFmpeg Command (Merge)',
 
   // Command: Merge (Spectrum Sync)
-  mergeSpectrumSync: '🎶 Smart Spectrum Sync (Auto-align by audio)',
-  mergeAskTimestamp: 'Enter the timestamp of File A with distinct sounds (e.g., 00:15:30):',
-  mergeAskWindow: 'Search window size in File B in seconds (Default: 30):',
+  mergeSpectrumSync: '🎶 Smart Spectrum Sync (Audio-based auto-align)',
+  mergeAskTimestamp: 'Enter the timestamp of File A (Reference) for analysis:',
+  mergeSpectrumHint: '💡 Tip: Choose a timestamp without dialogue, preferably with music or strong ambient sounds.',
+  mergeSpectrumResult: 'Sync complete! Calculated compensation: {0}ms',
   mergeSpectrumExtracting: 'Extracting audio frequencies for comparison...',
   mergeSpectrumCalculating: 'Calculating cross-correlation matrix...',
   mergeSpectrumFailed: 'Failed to analyze audio spectrum.',
