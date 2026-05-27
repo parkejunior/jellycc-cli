@@ -52,12 +52,12 @@ export async function runDeepScan(inputs: string[], maps: string[], totalDuratio
   let hasErrors = false;
 
   return new Promise<boolean>((resolve, reject) => {
-    // Montagem dinâmica dos argumentos para ler apenas o que importa
+    const results: Array<{ addr: string, start: number, duration: number }> = [];
+    const currentStarts = new Map<string, number>();
     const ffmpegArgs = ['-v', 'warning', '-stats'];
     inputs.forEach(inp => { ffmpegArgs.push('-i', inp); });
     maps.forEach(m => { ffmpegArgs.push('-map', m); });
-    
-    // O ESCUDO DEFINITIVO: Ignora qualquer legenda (-sn) e qualquer dado/fonte (-dn)
+
     ffmpegArgs.push('-sn', '-dn', '-f', 'null', '-');
 
     const ff = spawn('ffmpeg', ffmpegArgs);
@@ -86,10 +86,19 @@ export async function runDeepScan(inputs: string[], maps: string[], totalDuratio
       stderrBuffer = lines.pop() || '';
 
       for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.startsWith('frame=') && !trimmed.startsWith('size=')) {
-          errorOutput += trimmed + '\n';
-          hasErrors = true;
+        const startMatch = line.match(/silencedetect.*@\s+(0x[0-9a-fA-F]+)\].*?silence_start:\s*([\d.]+)/);
+        if (startMatch) {
+          const addr = startMatch[1]!;
+          currentStarts.set(addr, Number.parseFloat(startMatch[2]!));
+        }
+        const durationMatch = line.match(/silencedetect.*@\s+(0x[0-9a-fA-F]+)\].*?silence_duration:\s*([\d.]+)/);
+        if (durationMatch) {
+          const addr = durationMatch[1]!;
+          const cStart = currentStarts.get(addr);
+          if (cStart !== undefined) {
+            results.push({ addr, start: cStart, duration: Number.parseFloat(durationMatch[2]!) });
+            currentStarts.delete(addr);
+          }
         }
       }
     });
@@ -205,7 +214,7 @@ export async function runSilenceScan(inputs: string[], maps: string[], totalDura
   scanSpinner.start(t('scanSilenceStart'));
 
   return new Promise<boolean>((resolve) => {
-    const ffmpegArgs = ['-v', 'info', '-stats']; 
+    const ffmpegArgs = ['-v', 'info', '-stats'];
     inputs.forEach(inp => { ffmpegArgs.push('-i', inp); });
     maps.forEach(m => { ffmpegArgs.push('-map', m); });
     
@@ -214,8 +223,8 @@ export async function runSilenceScan(inputs: string[], maps: string[], totalDura
     const ff = spawn('ffmpeg', ffmpegArgs);
     let stderrBuffer = '';
     
-    const results: Array<{ trackIdx: number, start: number, duration: number }> = [];
-    const currentStarts = new Map<number, number>(); 
+    const results: Array<{ addr: string, start: number, duration: number }> = [];
+    const currentStarts = new Map<string, number>(); 
 
     ff.stderr.on('data', (data) => {
       stderrBuffer += data.toString();
@@ -239,19 +248,19 @@ export async function runSilenceScan(inputs: string[], maps: string[], totalDura
       stderrBuffer = lines.pop() || '';
 
       for (const line of lines) {
-        const startMatch = line.match(/Parsed_silencedetect_(\d+).*silence_start:\s*([\d.]+)/);
+        const startMatch = line.match(/silencedetect.*@\s+(0x[0-9a-fA-F]+)\].*?silence_start:\s*([\d.]+)/);
         if (startMatch) {
-          const trackIdx = parseInt(startMatch[1]!, 10);
-          currentStarts.set(trackIdx, Number.parseFloat(startMatch[2]!));
+          const addr = startMatch[1]!;
+          currentStarts.set(addr, Number.parseFloat(startMatch[2]!));
         }
 
-        const durationMatch = line.match(/Parsed_silencedetect_(\d+).*silence_duration:\s*([\d.]+)/);
+        const durationMatch = line.match(/silencedetect.*@\s+(0x[0-9a-fA-F]+)\].*?silence_duration:\s*([\d.]+)/);
         if (durationMatch) {
-          const trackIdx = parseInt(durationMatch[1]!, 10);
-          const cStart = currentStarts.get(trackIdx);
+          const addr = durationMatch[1]!;
+          const cStart = currentStarts.get(addr);
           if (cStart !== undefined) {
-            results.push({ trackIdx, start: cStart, duration: Number.parseFloat(durationMatch[2]!) });
-            currentStarts.delete(trackIdx);
+            results.push({ addr, start: cStart, duration: Number.parseFloat(durationMatch[2]!) });
+            currentStarts.delete(addr);
           }
         }
       }
@@ -266,21 +275,21 @@ export async function runSilenceScan(inputs: string[], maps: string[], totalDura
       if (results.length > 0) {
         scanSpinner.stop(pc.yellow(t('scanSilenceWarn')));
 
-        const grouped = new Map<number, Array<{start: number, duration: number}>>();
+        const grouped = new Map<string, Array<{start: number, duration: number}>>();
         for (const r of results) {
-           if (!grouped.has(r.trackIdx)) grouped.set(r.trackIdx, []);
-           grouped.get(r.trackIdx)!.push(r);
+           if (!grouped.has(r.addr)) grouped.set(r.addr, []);
+           grouped.get(r.addr)!.push(r);
         }
 
         let msg = '';
-        for (const [tIdx, items] of grouped.entries()) {
-           const mapName = maps[tIdx] || `Audio ${tIdx + 1}`; 
-           
-           msg += `${msg ? '\n\n' : ''}${pc.bold(`🎧 ${t('trackNum', tIdx + 1)} (Map ${mapName})`)}`;
+        let trackCounter = 1;
+        for (const [addr, items] of grouped.entries()) {
+           msg += `${msg ? '\n\n' : ''}${pc.bold(`🎧 Trilha Afetada #${trackCounter}`)}`;
            items.forEach(item => {
               const durText = t('scanSilenceItem', item.duration.toFixed(2));
               msg += `\n  • ${formatSecondsToTimestamp(item.start)} ${pc.dim(durText)}`;
            });
+           trackCounter++;
         }
 
         note(msg);
