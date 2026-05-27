@@ -79,7 +79,7 @@ export default {
   mergeNone: 'Nenhuma',
   mergeSelectStreams: 'Selecione as faixas que deseja manter',
   mergeHowToSync: 'Como deseja ajustar a sincronia do Arquivo B?',
-  mergeAutoSync: '⏭️  Igualar Durações (Aplicar {0} para igualar ao Arquivo A)',
+  mergeAutoSync: '⏭️  Igualar Durações ({0} para igualar ao Arquivo A)',
   mergeManualSync: '✏️  Digitar valor manualmente',
   mergeNoSync: '❌  Não ajustar (0ms)',
   mergeAskDelay: 'Informe o atraso do Arquivo B em milissegundos (ex: 2000 para atrasar 2s, -500 para adiantar 0.5s):',

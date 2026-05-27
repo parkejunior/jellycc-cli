@@ -30,6 +30,7 @@
 - 🔬 **Quick Scan + Deep Scan** — Checks container integrity and analyzes frame by frame looking for artifacts and errors.
 - 🔬 **Myopic Scan** — Deep Scan restricted to selected tracks.
 - 🎛️ **Track Selection** — Choose which video, audio, and subtitle streams to keep in the final file.
+- 🎶 **Smart Spectrum Sync** — Automatically aligns audio tracks from different sources, using advanced waveform cross-correlation.
 - ⏱️ **Sync Adjustment / End Cut** — Defines time offset and end cut to avoid lip-sync issues.
 - 🔀 **File Merging** — Merges tracks from two files into a single MKV, with automatic/manual sync and Strict Mode.
 - 🏷️ **Tag Editing** — Edits language (e.g., `por`, `eng`, `jpn`) and title for each track.
