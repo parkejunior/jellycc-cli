@@ -6,7 +6,7 @@ import type { FFprobeData } from '../types/media';
 
 export type SyncMenuOption = {
   label: string;
-  value: 'auto' | 'manual' | 'none';
+  value: 'auto' | 'manual' | 'none' | 'spectrum';
 };
 
 export function buildSyncOptions(exactDiffMs: number): SyncMenuOption[] {
@@ -19,12 +19,12 @@ export function buildSyncOptions(exactDiffMs: number): SyncMenuOption[] {
     });
   }
 
+  options.push({ label: t('mergeSpectrumSync'), value: 'spectrum' });
   options.push({ label: t('mergeManualSync'), value: 'manual' });
   options.push({ label: t('mergeNoSync'), value: 'none' });
 
   return options;
 }
-
 const buildFileSummary = (info: FFprobeData) => {
   const duration = info.format?.duration ? formatDuration(Number.parseFloat(info.format.duration)) : 'N/A';
   const size = info.format?.size ? formatSize(Number.parseInt(info.format.size, 10)) : 'N/A';

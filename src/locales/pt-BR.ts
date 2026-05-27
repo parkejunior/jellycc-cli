@@ -88,6 +88,14 @@ export default {
   mergeModifyStreams: 'Modifique as faixas que deseja manter:',
   mergeCmdSuggested: 'Comando FFmpeg Sugerido (Merge)',
 
+  // Command: Merge (Spectrum Sync)
+  mergeSpectrumSync: '🎶 Sincronizar por Espectro de Áudio (Automático)',
+  mergeAskTimestamp: 'Digite o momento do filme A sem falas (ex: 00:15:30):',
+  mergeAskWindow: 'Tamanho da janela de busca no filme B em segundos (Padrão: 30):',
+  mergeSpectrumExtracting: 'Extraindo frequências de áudio para comparação...',
+  mergeSpectrumCalculating: 'Calculando matriz de correlação cruzada...',
+  mergeSpectrumFailed: 'Falha ao analisar espectro de áudio.',
+
   // Scanners (FFprobe / FFmpeg)
   scanQuickStart: 'Executando Quick Scan de integridade...',
   scanQuickPass: '✔ Quick Scan aprovado: Estrutura do container intacta.',

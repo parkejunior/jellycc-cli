@@ -89,3 +89,17 @@ export const calculateTotalFrames = (
   }
   return 0;
 };
+
+export const parseTimestampToSeconds = (ts: string): number => {
+  const parts = ts.split(':').map(Number);
+  if (parts.length === 3) return (parts[0]! * 3600) + (parts[1]! * 60) + parts[2]!;
+  if (parts.length === 2) return (parts[0]! * 60) + parts[1]!;
+  return Number(ts) || 0;
+};
+
+export const formatSecondsToTimestamp = (totalSeconds: number): string => {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.floor(totalSeconds % 60);
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};

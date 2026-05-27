@@ -88,6 +88,14 @@ export default {
   mergeModifyStreams: 'Modify the streams you want to keep:',
   mergeCmdSuggested: 'Suggested FFmpeg Command (Merge)',
 
+  // Command: Merge (Spectrum Sync)
+  mergeSpectrumSync: '🎶 Smart Spectrum Sync (Auto-align by audio)',
+  mergeAskTimestamp: 'Enter the timestamp of File A with distinct sounds (e.g., 00:15:30):',
+  mergeAskWindow: 'Search window size in File B in seconds (Default: 30):',
+  mergeSpectrumExtracting: 'Extracting audio frequencies for comparison...',
+  mergeSpectrumCalculating: 'Calculating cross-correlation matrix...',
+  mergeSpectrumFailed: 'Failed to analyze audio spectrum.',
+
   // Scanners (FFprobe / FFmpeg)
   scanQuickStart: 'Running integrity Quick Scan...',
   scanQuickPass: '✔ Quick Scan passed: Container structure is intact.',

@@ -193,3 +193,37 @@ export async function runConversion(ffmpegCmd: string, totalDurationSec: number,
     });
   });
 }
+
+export async function extractRawAudio(filePath: string, startTs: string, durationSec: number): Promise<Float32Array> {
+  return new Promise((resolve, reject) => {
+    const ff = spawn('ffmpeg', [
+      '-v', 'error',
+      '-ss', startTs,
+      '-t', durationSec.toString(),
+      '-i', filePath,
+      '-ac', '1',
+      '-ar', '1000',
+      '-f', 'f32le',
+      'pipe:1'
+    ]);
+
+    const chunks: Buffer[] = [];
+    let errorLog = '';
+
+    ff.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
+    ff.stderr.on('data', (data: Buffer) => errorLog += data.toString());
+
+    ff.on('close', (code) => {
+      if (code !== 0) {
+        reject(new JellyError(`${t('mergeSpectrumFailed')} ${errorLog.trim()}`, 'FFMPEG_EXTRACTION_FAILED'));
+        return;
+      }
+      const fullBuffer = Buffer.concat(chunks);
+      resolve(new Float32Array(fullBuffer.buffer, fullBuffer.byteOffset, fullBuffer.byteLength / 4));
+    });
+
+    ff.on('error', (err) => {
+      reject(new JellyError(`${t('mergeSpectrumFailed')} ${err.message}`, 'FFMPEG_START_FAILED'));
+    });
+  });
+}
