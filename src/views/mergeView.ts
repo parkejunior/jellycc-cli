@@ -12,6 +12,8 @@ export type SyncMenuOption = {
 export function buildSyncOptions(exactDiffMs: number): SyncMenuOption[] {
   const options: SyncMenuOption[] = [];
 
+  options.push({ label: t('mergeSpectrumSync'), value: 'spectrum' });
+
   if (Math.abs(exactDiffMs) > 1000) {
     options.push({
       label: t('mergeAutoSync', exactDiffMs > 0 ? t('delayBehind', Math.abs(exactDiffMs)) : t('delayAhead', Math.abs(exactDiffMs))),
@@ -19,7 +21,6 @@ export function buildSyncOptions(exactDiffMs: number): SyncMenuOption[] {
     });
   }
 
-  options.push({ label: t('mergeSpectrumSync'), value: 'spectrum' });
   options.push({ label: t('mergeManualSync'), value: 'manual' });
   options.push({ label: t('mergeNoSync'), value: 'none' });
 
