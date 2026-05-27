@@ -123,6 +123,8 @@ export default {
   scanSilenceWarn: '⚠ Warning: Audio drops detected!',
   scanSilenceDetail: 'Silence detected at {0} (duration: {1}s)',
   scanSilenceFail: '✖ Failed to execute Silence Scan.',
+  scanSilenceProgress: 'Silence Scan in progress: {0}%',
+  scanSilenceItem: '(duration: {0}s)',
 
   // Command: Lang
   langSelect: '🌐 Select your preferred language:',

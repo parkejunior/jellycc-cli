@@ -123,6 +123,8 @@ export default {
   scanSilenceWarn: '⚠ Atenção: Quedas de áudio detectadas!',
   scanSilenceDetail: 'Silêncio detectado em {0} (duração: {1}s)',
   scanSilenceFail: '✖ Falha ao executar o Silence Scan.',
+  scanSilenceProgress: 'Silence Scan em andamento: {0}%',
+  scanSilenceItem: '(duração: {0}s)',
 
   // Comando: Lang
   langSelect: '🌐 Selecione o idioma de sua preferência / Select your preferred language:',

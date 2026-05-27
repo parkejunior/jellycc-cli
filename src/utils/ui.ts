@@ -95,7 +95,7 @@ export async function handleExecutionMenu(options: {
       const dsErrors = await runDeepScan(options.selectedScanInputs!, options.selectedScanMaps!, options.totalDuration);
       let silenceErrors = false;
       if (options.selectedAudioScanMaps && options.selectedAudioScanMaps.length > 0) {
-        silenceErrors = await runSilenceScan(options.selectedScanInputs!, options.selectedAudioScanMaps);
+        silenceErrors = await runSilenceScan(options.selectedScanInputs!, options.selectedAudioScanMaps, options.totalDuration);
       }
       fileHasErrors = fileHasErrors || dsErrors || silenceErrors;
       dsCompleted = true;
@@ -106,7 +106,7 @@ export async function handleExecutionMenu(options: {
       const dsErrors = await runDeepScan(options.fullScanInputs, options.fullScanMaps, options.totalDuration);
       let silenceErrors = false;
       if (options.fullAudioScanMaps && options.fullAudioScanMaps.length > 0) {
-        silenceErrors = await runSilenceScan(options.fullScanInputs, options.fullAudioScanMaps);
+        silenceErrors = await runSilenceScan(options.fullScanInputs, options.fullAudioScanMaps, options.totalDuration);
       }
       fileHasErrors = fileHasErrors || dsErrors || silenceErrors;
       dsCompleted = true;
@@ -118,7 +118,7 @@ export async function handleExecutionMenu(options: {
       const audioMaps = options.selectedAudioScanMaps || options.fullAudioScanMaps || [];
       
       if (audioMaps.length > 0) {
-        const silenceErrors = await runSilenceScan(inputs, audioMaps);
+        const silenceErrors = await runSilenceScan(inputs, audioMaps, options.totalDuration);
         fileHasErrors = fileHasErrors || silenceErrors;
       } else {
         const scanSpinner = spinner();
@@ -150,7 +150,7 @@ export async function handleExecutionMenu(options: {
         let silenceErrors = false;
         
         if (options.selectedAudioScanMaps && options.selectedAudioScanMaps.length > 0) {
-          silenceErrors = await runSilenceScan([actualOutputPath], ['0:a?']);
+          silenceErrors = await runSilenceScan([actualOutputPath], ['0:a?'], options.totalDuration);
         }
         
         fileHasErrors = fileHasErrors || dsErrors || silenceErrors;

@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import { log, spinner } from '@clack/prompts';
+import { spinner, note } from '@clack/prompts';
 import pc from 'picocolors';
 import { t } from './i18n.ts';
 import { JellyError } from './errors.ts';
@@ -199,13 +199,13 @@ export async function runConversion(ffmpegCmd: string, totalDurationSec: number,
  * Executes a Silence Scan to detect accidentally muted tracks or dropped audio.
  * Uses a default threshold of -50dB and 2 seconds of minimum duration.
  */
-export async function runSilenceScan(inputs: string[], maps: string[]): Promise<boolean> {
+export async function runSilenceScan(inputs: string[], maps: string[], totalDurationSec: number): Promise<boolean> {
   console.log('');
   const scanSpinner = spinner();
   scanSpinner.start(t('scanSilenceStart'));
 
   return new Promise<boolean>((resolve) => {
-    const ffmpegArgs = ['-v', 'info'];
+    const ffmpegArgs = ['-v', 'info', '-stats']; 
     inputs.forEach(inp => { ffmpegArgs.push('-i', inp); });
     maps.forEach(m => { ffmpegArgs.push('-map', m); });
     
@@ -213,40 +213,77 @@ export async function runSilenceScan(inputs: string[], maps: string[]): Promise<
 
     const ff = spawn('ffmpeg', ffmpegArgs);
     let stderrBuffer = '';
-    const results: Array<{ start: number, duration: number }> = [];
-    let currentStart: number | null = null;
+    
+    const results: Array<{ trackIdx: number, start: number, duration: number }> = [];
+    const currentStarts = new Map<number, number>(); 
 
     ff.stderr.on('data', (data) => {
       stderrBuffer += data.toString();
+
+      const timeMatch = stderrBuffer.match(/time=(\d{2}:\d{2}:\d{2}\.\d{2})/);
+      const matchTime = timeMatch?.[1];
+      if (matchTime && totalDurationSec > 0) {
+        const currentTime = parseFfmpegTime(matchTime);
+        let percent = Math.round((currentTime / totalDurationSec) * 100);
+        if (percent > 100) percent = 100;
+
+        const barLength = 25;
+        const filled = Math.round((percent / 100) * barLength);
+        const empty = barLength - filled;
+        const bar = '█'.repeat(filled) + '░'.repeat(empty);
+
+        scanSpinner.message(`${t('scanSilenceProgress', percent)} [${pc.cyan(bar)}]`);
+      }
+
       const lines = stderrBuffer.split(/[\r\n]+/);
       stderrBuffer = lines.pop() || '';
 
       for (const line of lines) {
-        const startMatch = line.match(/silence_start:\s*([\d.]+)/);
+        const startMatch = line.match(/Parsed_silencedetect_(\d+).*silence_start:\s*([\d.]+)/);
         if (startMatch) {
-          currentStart = Number.parseFloat(startMatch[1]!);
+          const trackIdx = parseInt(startMatch[1]!, 10);
+          currentStarts.set(trackIdx, Number.parseFloat(startMatch[2]!));
         }
 
-        const durationMatch = line.match(/silence_duration:\s*([\d.]+)/);
-        if (durationMatch && currentStart !== null) {
-          results.push({ start: currentStart, duration: Number.parseFloat(durationMatch[1]!) });
-          currentStart = null;
+        const durationMatch = line.match(/Parsed_silencedetect_(\d+).*silence_duration:\s*([\d.]+)/);
+        if (durationMatch) {
+          const trackIdx = parseInt(durationMatch[1]!, 10);
+          const cStart = currentStarts.get(trackIdx);
+          if (cStart !== undefined) {
+            results.push({ trackIdx, start: cStart, duration: Number.parseFloat(durationMatch[2]!) });
+            currentStarts.delete(trackIdx);
+          }
         }
       }
     });
 
     ff.on('close', (code) => {
       if (code !== 0) {
-        scanSpinner.stop(pc.yellow(t('scanSilenceFail')));
+        scanSpinner.stop(pc.red(t('scanSilenceFail')));
         return resolve(true);
       }
 
       if (results.length > 0) {
         scanSpinner.stop(pc.yellow(t('scanSilenceWarn')));
-        results.forEach(res => {
-          const timestamp = formatSecondsToTimestamp(res.start);
-          log.warn(pc.yellow(t('scanSilenceDetail', timestamp, res.duration.toFixed(2))));
-        });
+
+        const grouped = new Map<number, Array<{start: number, duration: number}>>();
+        for (const r of results) {
+           if (!grouped.has(r.trackIdx)) grouped.set(r.trackIdx, []);
+           grouped.get(r.trackIdx)!.push(r);
+        }
+
+        let msg = '';
+        for (const [tIdx, items] of grouped.entries()) {
+           const mapName = maps[tIdx] || `Audio ${tIdx + 1}`; 
+           
+           msg += `${msg ? '\n\n' : ''}${pc.bold(`🎧 ${t('trackNum', tIdx + 1)} (Map ${mapName})`)}`;
+           items.forEach(item => {
+              const durText = t('scanSilenceItem', item.duration.toFixed(2));
+              msg += `\n  • ${formatSecondsToTimestamp(item.start)} ${pc.dim(durText)}`;
+           });
+        }
+
+        note(msg);
         resolve(true);
       } else {
         scanSpinner.stop(pc.green(t('scanSilencePass')));
