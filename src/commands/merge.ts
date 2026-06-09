@@ -18,8 +18,11 @@ import { buildSyncOptions, renderComparison } from '../views/mergeView.ts';
 import { buildGroupedOptions } from '../views/streamOptions.ts';
 import { calculateSpectrumDelay } from '../services/spectrumAnalyzer.ts';
 import { extractRawAudio } from '../utils/ffmpeg.ts';
+import { buildAudioMaps, buildAudioLabels, buildSelectedAudioMaps, buildSelectedAudioLabels } from '../utils/mediaUtils.ts';
 
 const fallbackRules = fallbackRulesData as FallbackRules;
+const SPECTRUM_SAMPLE_WINDOW_SEC = 10;
+const SPECTRUM_SEARCH_WINDOW_SEC = 30;
 
 interface MergeSourcePaths {
   sourcePathA: string;
@@ -257,12 +260,11 @@ async function promptSyncAdjustment(
       }
     }));
 
-    // 10s of sample window to 30s search window
-    const durA = 10;
-    const durB = 30; 
+    const durA = SPECTRUM_SAMPLE_WINDOW_SEC;
+    const durB = SPECTRUM_SEARCH_WINDOW_SEC; 
 
     const tsSecs = parseTimestampToSeconds(tsStr);
-    const tsBSecs = Math.max(0, tsSecs - 10); // Starts 10s before the timestamp
+    const tsBSecs = Math.max(0, tsSecs - SPECTRUM_SAMPLE_WINDOW_SEC); // Starts before the timestamp
     const startTsB = formatSecondsToTimestamp(tsBSecs);
 
     const s = spinner();
@@ -353,8 +355,8 @@ function buildLoopContext(media: MergeMediaContext, state: MergeSessionState): M
     fullScanMaps: buildFullScanMaps(media),
     fullAudioScanMaps: buildFullAudioScanMaps(media),
     fullAudioScanLabels: buildFullAudioScanLabels(media),
-    selectedAudioScanMaps: state.selectedStreams.filter(s => s.type === 'audio').map(s => `${s.fileIndex}:${s.streamIndex}`),
-    selectedAudioScanLabels: state.selectedStreams.filter(s => s.type === 'audio').map(s => (s.language || 'und').toUpperCase())
+    selectedAudioScanMaps: buildSelectedAudioMaps(state.selectedStreams),
+    selectedAudioScanLabels: buildSelectedAudioLabels(state.selectedStreams)
   };
 }
 
@@ -367,15 +369,15 @@ function buildFullScanMaps(media: MergeMediaContext) {
 
 function buildFullAudioScanMaps(media: MergeMediaContext) {
   return [
-    ...media.infoA.streams.filter((stream) => stream.codec_type === 'audio').map((stream) => `0:${stream.index}`),
-    ...media.infoB.streams.filter((stream) => stream.codec_type === 'audio').map((stream) => `1:${stream.index}`)
+    ...buildAudioMaps(media.infoA.streams, 0),
+    ...buildAudioMaps(media.infoB.streams, 1)
   ];
 }
 
 function buildFullAudioScanLabels(media: MergeMediaContext) {
   return [
-    ...media.infoA.streams.filter((stream) => stream.codec_type === 'audio').map((stream) => (stream.tags?.language || 'und').toUpperCase()),
-    ...media.infoB.streams.filter((stream) => stream.codec_type === 'audio').map((stream) => (stream.tags?.language || 'und').toUpperCase())
+    ...buildAudioLabels(media.infoA.streams),
+    ...buildAudioLabels(media.infoB.streams)
   ];
 }
 

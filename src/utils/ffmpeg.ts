@@ -6,6 +6,21 @@ import { JellyError } from './errors.ts';
 import type { MediaStream } from '../types/media';
 import { formatSecondsToTimestamp } from './formatters.ts';
 
+export const DEFAULT_SILENCE_NOISE_DB = '-50dB';
+export const DEFAULT_SILENCE_DURATION = 2;
+
+export interface SilenceScanResult {
+  trackIdx: number;
+  start: number;
+  duration: number;
+}
+
+export interface DeepScanResult {
+  addr: string;
+  start: number;
+  duration: number;
+}
+
 export function parseFfmpegTime(timeStr: string) {
   const parts = timeStr.split(':');
   if (parts.length !== 3) return 0;
@@ -44,6 +59,48 @@ export function getDynamicAudioEncoder(
   return `-c:a:${outputIndex} ${targetCodec} -b:a:${outputIndex} ${targetBitrate}k`;
 }
 
+// Helpers centralizados de parse e barra de progresso (DRY)
+function generateProgressBar(percent: number, length: number = 25): string {
+  const filled = Math.round((percent / 100) * length);
+  const empty = length - filled;
+  return '█'.repeat(filled) + '░'.repeat(empty);
+}
+
+function createStderrParser(
+  totalDurationSec: number,
+  totalFrames: number,
+  onProgress: (percent: number) => void,
+  onLine: (line: string) => void
+) {
+  const state = { buffer: '' };
+
+  const parse = (data: Buffer | string) => {
+    state.buffer += data.toString();
+
+    const timeMatch = state.buffer.match(/time=\s*(\d{2}:\d{2}:\d{2}[\.\d]*)/);
+    if (timeMatch?.[1] && totalDurationSec > 0) {
+      const currentTime = parseFfmpegTime(timeMatch[1]);
+      onProgress(Math.min(100, Math.round((currentTime / totalDurationSec) * 100)));
+    } else if (totalFrames > 0) {
+      const frameMatch = state.buffer.match(/frame=\s*(\d+)/);
+      if (frameMatch?.[1]) {
+        const currentFrame = Number.parseInt(frameMatch[1], 10);
+        onProgress(Math.min(100, Math.round((currentFrame / totalFrames) * 100)));
+      }
+    }
+
+    const lines = state.buffer.split(/[\r\n]+/);
+    state.buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed) onLine(trimmed);
+    }
+  };
+
+  return { parse, state };
+}
+
 export async function runDeepScan(inputs: string[], maps: string[], totalDurationSec: number): Promise<boolean> {
   console.log(''); 
   const dsSpinner = spinner();
@@ -52,64 +109,46 @@ export async function runDeepScan(inputs: string[], maps: string[], totalDuratio
   let hasErrors = false;
 
   return new Promise<boolean>((resolve, reject) => {
-    const results: Array<{ addr: string, start: number, duration: number }> = [];
+    const results: DeepScanResult[] = [];
     const currentStarts = new Map<string, number>();
     const ffmpegArgs = ['-v', 'warning', '-stats'];
+    
     inputs.forEach(inp => { ffmpegArgs.push('-i', inp); });
     maps.forEach(m => { ffmpegArgs.push('-map', m); });
-
     ffmpegArgs.push('-sn', '-dn', '-f', 'null', '-');
 
     const ff = spawn('ffmpeg', ffmpegArgs);
     let errorOutput = '';
-    let stderrBuffer = '';
 
-    ff.stderr.on('data', (data) => {
-      stderrBuffer += data.toString();
+    const onProgress = (percent: number) => {
+      dsSpinner.message(`${t('scanDeepProgress', percent)} [${pc.cyan(generateProgressBar(percent))}]`);
+    };
 
-      const timeMatch = stderrBuffer.match(/time=(\d{2}:\d{2}:\d{2}\.\d{2})/);
-      const matchTime = timeMatch?.[1];
-      if (matchTime && totalDurationSec > 0) {
-        const currentTime = parseFfmpegTime(matchTime);
-        let percent = Math.round((currentTime / totalDurationSec) * 100);
-        if (percent > 100) percent = 100;
-        
-        const barLength = 25;
-        const filled = Math.round((percent / 100) * barLength);
-        const empty = barLength - filled;
-        const bar = '█'.repeat(filled) + '░'.repeat(empty);
-
-        dsSpinner.message(`${t('scanDeepProgress', percent)} [${pc.cyan(bar)}]`);
+    const onLine = (line: string) => {
+      const startMatch = line.match(/silencedetect.*@\s+(0x[0-9a-fA-F]+)\].*?silence_start:\s*([\d.]+)/);
+      if (startMatch) {
+        currentStarts.set(startMatch[1]!, Number.parseFloat(startMatch[2]!));
       }
-
-      const lines = stderrBuffer.split(/[\r\n]+/);
-      stderrBuffer = lines.pop() || '';
-
-      for (const line of lines) {
-        const startMatch = line.match(/silencedetect.*@\s+(0x[0-9a-fA-F]+)\].*?silence_start:\s*([\d.]+)/);
-        if (startMatch) {
-          const addr = startMatch[1]!;
-          currentStarts.set(addr, Number.parseFloat(startMatch[2]!));
-        }
-        const durationMatch = line.match(/silencedetect.*@\s+(0x[0-9a-fA-F]+)\].*?silence_duration:\s*([\d.]+)/);
-        if (durationMatch) {
-          const addr = durationMatch[1]!;
-          const cStart = currentStarts.get(addr);
-          if (cStart !== undefined) {
-            results.push({ addr, start: cStart, duration: Number.parseFloat(durationMatch[2]!) });
-            currentStarts.delete(addr);
-          }
+      
+      const durationMatch = line.match(/silencedetect.*@\s+(0x[0-9a-fA-F]+)\].*?silence_duration:\s*([\d.]+)/);
+      if (durationMatch) {
+        const addr = durationMatch[1]!;
+        const cStart = currentStarts.get(addr);
+        if (cStart !== undefined) {
+          results.push({ addr, start: cStart, duration: Number.parseFloat(durationMatch[2]!) });
+          currentStarts.delete(addr);
         }
       }
-    });
+    };
+
+    const { parse, state } = createStderrParser(totalDurationSec, 0, onProgress, onLine);
+    ff.stderr.on('data', parse);
 
     ff.on('close', (code) => {
-      if (stderrBuffer.trim()) {
-        const trimmed = stderrBuffer.trim();
-        if (!trimmed.startsWith('frame=') && !trimmed.startsWith('size=')) {
-          errorOutput += trimmed + '\n';
-          hasErrors = true;
-        }
+      const remainingBuffer = state.buffer.trim();
+      if (remainingBuffer && !remainingBuffer.startsWith('frame=') && !remainingBuffer.startsWith('size=')) {
+        errorOutput += remainingBuffer + '\n';
+        hasErrors = true;
       }
 
       if (errorOutput.trim()) {
@@ -143,49 +182,19 @@ export async function runConversion(ffmpegCmd: string, totalDurationSec: number,
     
     let tailLog: string[] = [];
     let lastBar = '[░░░░░░░░░░░░░░░░░░░░░░░░░] 0%';
-    let stderrBuffer = '';
 
-    ff.stderr.on('data', (data) => {
-      stderrBuffer += data.toString();
-      const lines = stderrBuffer.split(/[\r\n]+/);
-      stderrBuffer = lines.pop() || '';
+    const onProgress = (percent: number) => {
+      lastBar = `[${pc.cyan(generateProgressBar(percent))}] ${percent}%`;
+    };
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
+    const onLine = (line: string) => {
+      tailLog.push(line);
+      if (tailLog.length > 10) tailLog.shift();
+      convSpinner.message(`${t('convProgress')}\n${lastBar}\n\n${pc.dim(tailLog.join('\n'))}`);
+    };
 
-        tailLog.push(trimmed);
-        if (tailLog.length > 10) {
-          tailLog.shift();
-        }
-
-        const timeMatch = trimmed.match(/time=\s*(\d{2}:\d{2}:\d{2}[\.\d]*)/);
-        const frameMatch = trimmed.match(/frame=\s*(\d+)/);
-
-        let percent = -1;
-
-        const matchTime = timeMatch?.[1];
-        const matchFrame = frameMatch?.[1];
-
-        if (matchTime && totalDurationSec > 0) {
-          const currentTime = parseFfmpegTime(matchTime);
-          percent = Math.round((currentTime / totalDurationSec) * 100);
-        } else if (matchFrame && totalFrames > 0) {
-          const currentFrame = Number.parseInt(matchFrame, 10);
-          percent = Math.round((currentFrame / totalFrames) * 100);
-        }
-
-        if (percent >= 0) {
-          if (percent > 100) percent = 100;
-          const barLength = 25;
-          const filled = Math.round((percent / 100) * barLength);
-          const empty = barLength - filled;
-          lastBar = `[${pc.cyan('█'.repeat(filled) + '░'.repeat(empty))}] ${percent}%`;
-        }
-
-        convSpinner.message(`${t('convProgress')}\n${lastBar}\n\n${pc.dim(tailLog.join('\n'))}`);
-      }
-    });
+    const { parse } = createStderrParser(totalDurationSec, totalFrames, onProgress, onLine);
+    ff.stderr.on('data', parse);
 
     ff.on('close', (code) => {
       if (code === 0) {
@@ -204,10 +213,6 @@ export async function runConversion(ffmpegCmd: string, totalDurationSec: number,
   });
 }
 
-/**
- * Executes a Silence Scan to detect accidentally muted tracks or dropped audio.
- * Uses a default threshold of -50dB and 2 seconds of minimum duration.
- */
 export async function runSilenceScan(
   inputs: string[], 
   maps: string[], 
@@ -223,63 +228,44 @@ export async function runSilenceScan(
     inputs.forEach(inp => { ffmpegArgs.push('-i', inp); });
     maps.forEach(m => { ffmpegArgs.push('-map', m); });
     
-    ffmpegArgs.push('-vn', '-af', 'silencedetect=noise=-50dB:d=2', '-f', 'null', '-');
+    ffmpegArgs.push('-vn', '-af', `silencedetect=noise=${DEFAULT_SILENCE_NOISE_DB}:d=${DEFAULT_SILENCE_DURATION}`, '-f', 'null', '-');
 
     const ff = spawn('ffmpeg', ffmpegArgs);
-    let stderrBuffer = '';
-
-    const results: Array<{ trackIdx: number, start: number, duration: number }> = [];
     
+    const results: SilenceScanResult[] = [];
     let nextTrackIdx = 0;
     const addressToTrackIdx = new Map<string, number>();
     const currentStarts = new Map<string, number>(); 
 
-    ff.stderr.on('data', (data) => {
-      stderrBuffer += data.toString();
+    const onProgress = (percent: number) => {
+      scanSpinner.message(`${t('scanSilenceProgress', percent)} [${pc.cyan(generateProgressBar(percent))}]`);
+    };
 
-      const timeMatch = stderrBuffer.match(/time=(\d{2}:\d{2}:\d{2}\.\d{2})/);
-      const matchTime = timeMatch?.[1];
-      if (matchTime && totalDurationSec > 0) {
-        const currentTime = parseFfmpegTime(matchTime);
-        let percent = Math.round((currentTime / totalDurationSec) * 100);
-        if (percent > 100) percent = 100;
-
-        const barLength = 25;
-        const filled = Math.round((percent / 100) * barLength);
-        const empty = barLength - filled;
-        const bar = '█'.repeat(filled) + '░'.repeat(empty);
-
-        scanSpinner.message(`${t('scanSilenceProgress', percent)} [${pc.cyan(bar)}]`);
+    const onLine = (line: string) => {
+      const startMatch = line.match(/silencedetect.*@\s+(0x[0-9a-fA-F]+)\].*?silence_start:\s*([\d.]+)/);
+      if (startMatch) {
+        const addr = startMatch[1]!;
+        if (!addressToTrackIdx.has(addr)) {
+          addressToTrackIdx.set(addr, nextTrackIdx++);
+        }
+        currentStarts.set(addr, Number.parseFloat(startMatch[2]!));
       }
 
-      const lines = stderrBuffer.split(/[\r\n]+/);
-      stderrBuffer = lines.pop() || '';
-
-      for (const line of lines) {
-        const startMatch = line.match(/silencedetect.*@\s+(0x[0-9a-fA-F]+)\].*?silence_start:\s*([\d.]+)/);
-        if (startMatch) {
-          const addr = startMatch[1]!;
-          
-          if (!addressToTrackIdx.has(addr)) {
-            addressToTrackIdx.set(addr, nextTrackIdx++);
-          }
-          
-          currentStarts.set(addr, Number.parseFloat(startMatch[2]!));
-        }
-
-        const durationMatch = line.match(/silencedetect.*@\s+(0x[0-9a-fA-F]+)\].*?silence_duration:\s*([\d.]+)/);
-        if (durationMatch) {
-          const addr = durationMatch[1]!;
-          const cStart = currentStarts.get(addr);
-          const trackIdx = addressToTrackIdx.get(addr);
-          
-          if (cStart !== undefined && trackIdx !== undefined) {
-            results.push({ trackIdx, start: cStart, duration: Number.parseFloat(durationMatch[2]!) });
-            currentStarts.delete(addr);
-          }
+      const durationMatch = line.match(/silencedetect.*@\s+(0x[0-9a-fA-F]+)\].*?silence_duration:\s*([\d.]+)/);
+      if (durationMatch) {
+        const addr = durationMatch[1]!;
+        const cStart = currentStarts.get(addr);
+        const trackIdx = addressToTrackIdx.get(addr);
+        
+        if (cStart !== undefined && trackIdx !== undefined) {
+          results.push({ trackIdx, start: cStart, duration: Number.parseFloat(durationMatch[2]!) });
+          currentStarts.delete(addr);
         }
       }
-    });
+    };
+
+    const { parse } = createStderrParser(totalDurationSec, 0, onProgress, onLine);
+    ff.stderr.on('data', parse);
 
     ff.on('close', (code) => {
       if (code !== 0) {

@@ -13,7 +13,7 @@ import { buildCheckCommand } from '../utils/builder.ts';
 import { ValidationError } from '../utils/errors.ts';
 import { getMediaInfo, runQuickScan } from '../utils/ffprobe.ts';
 import { t } from '../utils/i18n.ts';
-import { filterGarbageStreams } from '../utils/mediaUtils.ts';
+import { filterGarbageStreams, buildAudioMaps, buildAudioLabels, buildSelectedAudioMaps, buildSelectedAudioLabels } from '../utils/mediaUtils.ts';
 import { editTagsMenu, handleExecutionMenu, onCancel, sanitizePath } from '../utils/ui.ts';
 import { renderActionPlan, renderMatrix } from '../views/checkView.ts';
 import { buildGroupedOptions } from '../views/streamOptions.ts';
@@ -218,12 +218,12 @@ function buildLoopContext(
     totalFrames: diagnostic.metadata.totalFrames,
     fullScanInputs: [targetFile],
     fullScanMaps: ['0'],
-    fullAudioScanMaps: probeData.streams.filter(s => s.codec_type === 'audio').map(s => `0:${s.index}`),
-    fullAudioScanLabels: probeData.streams.filter(s => s.codec_type === 'audio').map(s => (s.tags?.language || 'und').toUpperCase()),
+    fullAudioScanMaps: buildAudioMaps(probeData.streams, 0),
+    fullAudioScanLabels: buildAudioLabels(probeData.streams),
     selectedScanInputs: [targetFile],
     selectedScanMaps: selectedStreams.map((stream) => `0:${stream.streamIndex}`),
-    selectedAudioScanMaps: selectedStreams.filter(s => s.type === 'audio').map(s => `0:${s.streamIndex}`),
-    selectedAudioScanLabels: selectedStreams.filter(s => s.type === 'audio').map(s => (s.language || 'und').toUpperCase())
+    selectedAudioScanMaps: buildSelectedAudioMaps(selectedStreams),
+    selectedAudioScanLabels: buildSelectedAudioLabels(selectedStreams)
   };
 }
 
