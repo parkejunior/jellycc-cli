@@ -95,22 +95,14 @@ export async function handleExecutionMenu(options: {
 
     if (action === 'deep_scan_selected') {
       const dsErrors = await runDeepScan(options.selectedScanInputs!, options.selectedScanMaps!, options.totalDuration);
-      let silenceErrors = false;
-      if (options.selectedAudioScanMaps && options.selectedAudioScanMaps.length > 0) {
-        silenceErrors = await runSilenceScan(options.selectedScanInputs!, options.selectedAudioScanMaps, options.totalDuration, options.selectedAudioScanLabels);
-      }
-      fileHasErrors = fileHasErrors || dsErrors || silenceErrors;
+      fileHasErrors = fileHasErrors || dsErrors;
       dsCompleted = true;
       continue;
-    } 
+    }
     
     if (action === 'deep_scan_full') {
       const dsErrors = await runDeepScan(options.fullScanInputs, options.fullScanMaps, options.totalDuration);
-      let silenceErrors = false;
-      if (options.fullAudioScanMaps && options.fullAudioScanMaps.length > 0) {
-        silenceErrors = await runSilenceScan(options.fullScanInputs, options.fullAudioScanMaps, options.totalDuration, options.fullAudioScanLabels);
-      }
-      fileHasErrors = fileHasErrors || dsErrors || silenceErrors;
+      fileHasErrors = fileHasErrors || dsErrors;
       dsCompleted = true;
       continue;
     }
@@ -150,13 +142,7 @@ export async function handleExecutionMenu(options: {
       
       if (action === 'run_and_scan' || action === 'run_repair_and_scan') {
         const dsErrors = await runDeepScan([actualOutputPath], ['0'], options.totalDuration);
-        let silenceErrors = false;
-        
-        if (options.selectedAudioScanMaps && options.selectedAudioScanMaps.length > 0) {
-          silenceErrors = await runSilenceScan([actualOutputPath], ['0:a?'], options.totalDuration, options.selectedAudioScanLabels);
-        }
-        
-        fileHasErrors = fileHasErrors || dsErrors || silenceErrors;
+        fileHasErrors = fileHasErrors || dsErrors;
       }
 
       const successMsg = options.isMerge ? t('successMerge') : t('successOp');
