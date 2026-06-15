@@ -7,7 +7,8 @@ import {
   getDynamicAudioEncoder,
   runDeepScan,
   runConversion,
-  extractRawAudio
+  extractRawAudio,
+  runSilenceScan,
 } from './ffmpeg.ts';
 import { JellyError } from './errors.ts';
 
@@ -15,8 +16,9 @@ mock.module('@clack/prompts', () => ({
   spinner: () => ({
     start: mock(),
     stop: mock(),
-    message: mock()
-  })
+    message: mock(),
+  }),
+  note: mock()
 }));
 
 describe('utils/ffmpeg.ts', () => {
@@ -26,6 +28,7 @@ describe('utils/ffmpeg.ts', () => {
     spawnSpy.mockClear();
   });
 
+  // Utility Functions
   test('parseFfmpegTime should convert time strings correctly', () => {
     expect({
       standard: parseFfmpegTime('01:30:15.50'),
@@ -72,6 +75,7 @@ describe('utils/ffmpeg.ts', () => {
     });
   });
 
+  // Deep Scan
   test('runDeepScan should process streams and resolve correctly', async () => {
     const mockProcess = new EventEmitter() as any;
     mockProcess.stderr = new EventEmitter();
@@ -122,6 +126,35 @@ describe('utils/ffmpeg.ts', () => {
     });
   });
 
+  test('runDeepScan should flag errors if remaining buffer contains actual errors (not frame/size) even on exit 0', async () => {
+    const mockProcess = new EventEmitter() as any;
+    mockProcess.stderr = new EventEmitter();
+    spawnSpy.mockReturnValue(mockProcess);
+
+    const scanPromise = runDeepScan(['in.mkv'], ['0:v'], 100);
+
+    mockProcess.stderr.emit('data', Buffer.from('Some critical decoding error without newline'));
+    mockProcess.emit('close', 0);
+
+    const result = await scanPromise;
+    expect(result).toBe(true); 
+  });
+
+  test('runDeepScan should ignore remaining buffer if it starts with frame= or size=', async () => {
+    const mockProcess = new EventEmitter() as any;
+    mockProcess.stderr = new EventEmitter();
+    spawnSpy.mockReturnValue(mockProcess);
+
+    const scanPromise = runDeepScan(['in.mkv'], ['0:v'], 100);
+
+    mockProcess.stderr.emit('data', Buffer.from('size=2048kB time=00:02:00.00'));
+    mockProcess.emit('close', 0);
+
+    const result = await scanPromise;
+    expect(result).toBe(false); 
+  });
+
+  // Conversion
   test('runConversion should track progress and resolve on success', async () => {
     const mockProcess = new EventEmitter() as any;
     mockProcess.stderr = new EventEmitter();
@@ -131,6 +164,37 @@ describe('utils/ffmpeg.ts', () => {
 
     mockProcess.stderr.emit('data', Buffer.from('frame= 1200 fps=30 time=00:00:50.00\n'));
     mockProcess.stderr.emit('data', Buffer.from('some random log\n'));
+    mockProcess.emit('close', 0);
+
+    await expect(convPromise).resolves.toBeUndefined();
+  });
+
+  test('runConversion should handle commands with "-y" and truncate long logs (>10 lines)', async () => {
+    const mockProcess = new EventEmitter() as any;
+    mockProcess.stderr = new EventEmitter();
+    spawnSpy.mockReturnValue(mockProcess);
+
+    const convPromise = runConversion('ffmpeg -y -i test.mkv', 100);
+
+    for (let i = 1; i <= 12; i++) {
+      mockProcess.stderr.emit('data', Buffer.from(`Log line ${i}\n`));
+    }
+
+    mockProcess.emit('close', 0);
+    await expect(convPromise).resolves.toBeUndefined();
+  });
+
+  test('runConversion should track progress using totalFrames if totalDurationSec is 0 or missing', async () => {
+    const mockProcess = new EventEmitter() as any;
+    mockProcess.stderr = new EventEmitter();
+    spawnSpy.mockReturnValue(mockProcess);
+
+    const convPromise = runConversion('ffmpeg -i test.mkv', 0, 100);
+
+    mockProcess.stderr.emit('data', Buffer.from('frame= '));
+    mockProcess.stderr.emit('data', Buffer.from('50 fps=30\n'));
+    mockProcess.stderr.emit('data', Buffer.from('\r\n\r\n   \n'));
+    
     mockProcess.emit('close', 0);
 
     await expect(convPromise).resolves.toBeUndefined();
@@ -166,6 +230,7 @@ describe('utils/ffmpeg.ts', () => {
     });
   });
 
+  // Audio Extraction
   test('extractRawAudio should resolve with Float32Array on success', async () => {
     const mockProcess = new EventEmitter() as any;
     mockProcess.stdout = new EventEmitter();
@@ -234,5 +299,97 @@ describe('utils/ffmpeg.ts', () => {
       isJelly: true,
       code: 'FFMPEG_START_FAILED'
     });
+  });
+
+  // Silence Scan
+  test('runSilenceScan should resolve false when no silence is found', async () => {
+    const mockProcess = new EventEmitter() as any;
+    mockProcess.stderr = new EventEmitter();
+    spawnSpy.mockReturnValue(mockProcess);
+
+    const scanPromise = runSilenceScan(['in.mkv'], ['0:a:0'], 100);
+    
+    mockProcess.stderr.emit('data', Buffer.from('size=256kB time=00:00:25.00 bitrate=100kbits/s\n'));
+    mockProcess.stderr.emit('data', Buffer.from('some random ffmpeg log without silence\n'));
+    mockProcess.emit('close', 0);
+
+    const result = await scanPromise;
+    expect(result).toBe(false);
+  });
+
+  test('runSilenceScan should capture and group multiple silence durations via memory address', async () => {
+    const mockProcess = new EventEmitter() as any;
+    mockProcess.stderr = new EventEmitter();
+    spawnSpy.mockReturnValue(mockProcess);
+
+    const scanPromise = runSilenceScan(['in.mkv'], ['0:a:0', '0:a:1'], 100, ['ENG', 'POR']);
+
+    mockProcess.stderr.emit('data', Buffer.from('[silencedetect @ 0xABC] silence_start: 10.5\n'));
+    mockProcess.stderr.emit('data', Buffer.from('[silencedetect @ 0xDEF] silence_start: 20.0\n'));
+    
+    mockProcess.stderr.emit('data', Buffer.from('[silencedetect @ 0xABC] silence_end: 15.5 | silence_duration: 5.0\n'));
+    mockProcess.stderr.emit('data', Buffer.from('[silencedetect @ 0xDEF] silence_end: 22.0 | silence_duration: 2.0\n'));
+
+    mockProcess.stderr.emit('data', Buffer.from('[silencedetect @ 0xABC] silence_start: 30.0\n'));
+    mockProcess.stderr.emit('data', Buffer.from('[silencedetect @ 0xABC] silence_end: 33.0 | silence_duration: 3.0\n'));
+
+    mockProcess.emit('close', 0);
+
+    const result = await scanPromise;
+    expect(result).toBe(true);
+  });
+
+  test('runSilenceScan should handle silence_duration without a preceding silence_start safely', async () => {
+    const mockProcess = new EventEmitter() as any;
+    mockProcess.stderr = new EventEmitter();
+    spawnSpy.mockReturnValue(mockProcess);
+
+    const scanPromise = runSilenceScan(['in.mkv'], ['0:a:0'], 100);
+
+    mockProcess.stderr.emit('data', Buffer.from('[silencedetect @ 0x999] silence_end: 10.0 | silence_duration: 5.0\n'));
+    mockProcess.emit('close', 0);
+
+    const result = await scanPromise;
+    expect(result).toBe(false); 
+  });
+
+  test('runSilenceScan should format warnings correctly even if trackLabels are missing', async () => {
+    const mockProcess = new EventEmitter() as any;
+    mockProcess.stderr = new EventEmitter();
+    spawnSpy.mockReturnValue(mockProcess);
+
+    const scanPromise = runSilenceScan(['in.mkv'], ['0:a:0'], 100); 
+
+    mockProcess.stderr.emit('data', Buffer.from('[silencedetect @ 0x111] silence_start: 1.0\n'));
+    mockProcess.stderr.emit('data', Buffer.from('[silencedetect @ 0x111] silence_duration: 2.0\n'));
+    mockProcess.emit('close', 0);
+
+    const result = await scanPromise;
+    expect(result).toBe(true);
+  });
+
+  test('runSilenceScan should return true on failure (non-zero exit) without throwing', async () => {
+    const mockProcess = new EventEmitter() as any;
+    mockProcess.stderr = new EventEmitter();
+    spawnSpy.mockReturnValue(mockProcess);
+
+    const scanPromise = runSilenceScan(['in.mkv'], ['0:a:0'], 100);
+    mockProcess.emit('close', 1);
+
+    const result = await scanPromise;
+    expect(result).toBe(true);
+  });
+
+  test('runSilenceScan should return true and stop spinner on process error (e.g. spawn failed)', async () => {
+    const mockProcess = new EventEmitter() as any;
+    mockProcess.stderr = new EventEmitter();
+    spawnSpy.mockReturnValue(mockProcess);
+
+    const scanPromise = runSilenceScan(['in.mkv'], ['0:a:0'], 100);
+
+    mockProcess.emit('error', new Error('spawn ENOENT'));
+
+    const result = await scanPromise;
+    expect(result).toBe(true);
   });
 });

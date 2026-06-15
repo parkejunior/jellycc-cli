@@ -4,7 +4,11 @@ import {
   isAttachedPic,
   isGarbageStream,
   hasEmbeddedGarbage,
-  filterGarbageStreams
+  filterGarbageStreams,
+  buildAudioMaps,
+  buildAudioLabels,
+  buildSelectedAudioMaps,
+  buildSelectedAudioLabels
 } from './mediaUtils.ts';
 import type { MediaStream } from '../types/media.d.ts';
 
@@ -85,5 +89,30 @@ describe('utils/mediaUtils.ts', () => {
     
     expect(filtered).not.toContain(imageSubPGS);
     expect(filtered).not.toContain(coverArtAttached);
+  });
+});
+
+describe('Audio Metadata Extractors', () => {
+  const sampleStreams: any[] = [
+    { index: 0, codec_type: 'video', tags: { language: 'eng' } },
+    { index: 1, codec_type: 'audio', tags: { language: 'por' } },
+    { index: 2, codec_type: 'audio' } //  language: 'und'
+  ];
+
+  const sampleSelected: any[] = [
+    { streamIndex: 0, type: 'video', language: 'eng', fileIndex: 0 },
+    { streamIndex: 1, type: 'audio', language: 'por', fileIndex: 1 },
+    { streamIndex: 2, type: 'audio' } // language: 'und', fileIndex: 0
+  ];
+
+  test('buildAudioMaps & buildAudioLabels should extract audio properties from FFprobeData streams', () => {
+    expect(buildAudioMaps(sampleStreams, 0)).toEqual(['0:1', '0:2']);
+    expect(buildAudioMaps(sampleStreams, 1)).toEqual(['1:1', '1:2']);
+    expect(buildAudioLabels(sampleStreams)).toEqual(['POR', 'UND']);
+  });
+
+  test('buildSelectedAudioMaps & buildSelectedAudioLabels should extract audio properties from SelectedStream', () => {
+    expect(buildSelectedAudioMaps(sampleSelected)).toEqual(['1:1', '0:2']);
+    expect(buildSelectedAudioLabels(sampleSelected)).toEqual(['POR', 'UND']);
   });
 });
