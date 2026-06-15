@@ -28,7 +28,8 @@
 - 🔄 **Conversão (Transcode)** — Converte para codecs Direct Play (H.264 8-bit / AAC, EAC3 ou FLAC) com regras de fallback configuráveis.
 - 🔧 **Reparo Forçado** — Corrige arquivos com timestamps corrompidos via pipeline intermediário (`.w64`/`.mp4`).
 - 🔬 **Quick Scan + Deep Scan** — Verifica integridade do container e analisa quadro a quadro em busca de artefatos e erros.
-- 🔬 **Myopic Scan** — Deep Scan restrito às faixas selecionadas.
+- 🔬 **Myopic Scan** — Deep Scan restrito apenas às faixas selecionadas.
+- 🔊 **Silence Scan** — Analisar e identificar longos períodos de silêncio nas faixas de áudio.
 - 🎛️ **Seleção de Faixas** — Escolha quais streams de vídeo, áudio e legenda manter no arquivo final.
 - 🎶 **Smart Spectrum Sync** — Alinha automaticamente faixas de áudio de origens diferentes, usando correlação matemática de ondas sonoras.
 - ⏱️ **Ajuste de Sincronia / Corte Final** — Define offset temporal e corte final para evitar problemas de lip-sync.
@@ -102,7 +103,8 @@ Após a análise de um arquivo, um menu interativo é exibido com as seguintes o
 - ⏱️ **Ajustar Sincronia / Corte Final** — Define offset temporal e corte final.
 - 🔍 **Deep Scan** — Análise quadro a quadro de todas as faixas.
 - 🔬 **Myopic Scan** — Deep Scan apenas nas faixas selecionadas.
-- 🏷️ **Editar Tags** — Edita idioma e título de cada faixa.
+- 🔊 **Silence Scan** — Detecta longos períodos de silêncio nas faixas de áudio.
+- 🏷️ **Editar Tags** — Edita o idioma e título de cada faixa.
 
 ## ⚙️ Configuração
 
