@@ -15,12 +15,6 @@ export interface SilenceScanResult {
   duration: number;
 }
 
-export interface DeepScanResult {
-  addr: string;
-  start: number;
-  duration: number;
-}
-
 export function parseFfmpegTime(timeStr: string) {
   const parts = timeStr.split(':');
   if (parts.length !== 3) return 0;
@@ -59,7 +53,6 @@ export function getDynamicAudioEncoder(
   return `-c:a:${outputIndex} ${targetCodec} -b:a:${outputIndex} ${targetBitrate}k`;
 }
 
-// Helpers centralizados de parse e barra de progresso (DRY)
 function generateProgressBar(percent: number, length: number = 25): string {
   const filled = Math.round((percent / 100) * length);
   const empty = length - filled;
@@ -109,8 +102,6 @@ export async function runDeepScan(inputs: string[], maps: string[], totalDuratio
   let hasErrors = false;
 
   return new Promise<boolean>((resolve, reject) => {
-    const results: DeepScanResult[] = [];
-    const currentStarts = new Map<string, number>();
     const ffmpegArgs = ['-v', 'warning', '-stats'];
     
     inputs.forEach(inp => { ffmpegArgs.push('-i', inp); });
@@ -125,19 +116,8 @@ export async function runDeepScan(inputs: string[], maps: string[], totalDuratio
     };
 
     const onLine = (line: string) => {
-      const startMatch = line.match(/silencedetect.*@\s+(0x[0-9a-fA-F]+)\].*?silence_start:\s*([\d.]+)/);
-      if (startMatch) {
-        currentStarts.set(startMatch[1]!, Number.parseFloat(startMatch[2]!));
-      }
-      
-      const durationMatch = line.match(/silencedetect.*@\s+(0x[0-9a-fA-F]+)\].*?silence_duration:\s*([\d.]+)/);
-      if (durationMatch) {
-        const addr = durationMatch[1]!;
-        const cStart = currentStarts.get(addr);
-        if (cStart !== undefined) {
-          results.push({ addr, start: cStart, duration: Number.parseFloat(durationMatch[2]!) });
-          currentStarts.delete(addr);
-        }
+      if (!line.startsWith('frame=') && !line.startsWith('size=')) {
+        errorOutput += line + '\n';
       }
     };
 
@@ -148,10 +128,10 @@ export async function runDeepScan(inputs: string[], maps: string[], totalDuratio
       const remainingBuffer = state.buffer.trim();
       if (remainingBuffer && !remainingBuffer.startsWith('frame=') && !remainingBuffer.startsWith('size=')) {
         errorOutput += remainingBuffer + '\n';
-        hasErrors = true;
       }
 
       if (errorOutput.trim()) {
+        hasErrors = true;
         dsSpinner.stop(pc.yellow(t('scanDeepWarn')));
         console.log(pc.dim(errorOutput.trim()));
       } else if (code === 0) {
