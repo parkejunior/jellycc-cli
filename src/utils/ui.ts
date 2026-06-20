@@ -13,7 +13,17 @@ export function onCancel<T>(value: T): Exclude<T, symbol> {
   return value as Exclude<T, symbol>;
 }
 
-export const sanitizePath = (p: string | undefined | null) => p ? p.trim().replace(/^['"]|['"]$/g, '') : p;
+export const sanitizePath = (p: string | undefined | null) => {
+  if (!p) return p;
+  
+  let cleaned = p.trim();
+
+  cleaned = cleaned.replace(/^['"]|['"]$/g, '');
+  cleaned = cleaned.replace(/'\\''/g, "'");
+  cleaned = cleaned.replace(/\\( )/g, '$1');
+
+  return cleaned;
+};
 
 export interface ExecutionMenuResult {
   action: string;
