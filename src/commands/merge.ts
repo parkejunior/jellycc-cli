@@ -9,6 +9,7 @@ import fallbackRulesData from '../config/fallback_rules.yaml';
 import type { FallbackRules } from '../types/config';
 import type { FFprobeData, SelectedStream } from '../types/media';
 import { buildMergeCommand } from '../utils/builder.ts';
+import { checkFreeDiskSpace } from '../utils/disk.ts';
 import { ValidationError } from '../utils/errors.ts';
 import { getMediaInfo } from '../utils/ffprobe.ts';
 import { calculateTotalFrames, parseTimestampToSeconds, formatSecondsToTimestamp } from '../utils/formatters.ts';
@@ -83,6 +84,11 @@ export async function mergeCommand(_args: string[]) {
     note(pc.yellow(t('mergeDurationAlert')), t('durationAlertTitle'));
     applySyncState(state, await promptSyncAdjustment(media, state));
   }
+
+  const sizeA = media.infoA.format?.size ? Number.parseInt(media.infoA.format.size, 10) : 0;
+  const sizeB = media.infoB.format?.size ? Number.parseInt(media.infoB.format.size, 10) : 0;
+  const requiredBytes = Math.round((sizeA + sizeB) * 1.2);
+  await checkFreeDiskSpace(path.dirname(media.outputPath), requiredBytes);
 
   while (true) {
     const context = buildLoopContext(media, state);
@@ -335,7 +341,7 @@ function buildLoopContext(media: MergeMediaContext, state: MergeSessionState): M
       media.outputPath,
       state.currentDelayMs,
       state.applyShortest,
-      false
+      true
     ),
     ffmpegRepairCmd: buildMergeCommand(
       state.selectedStreams,
@@ -347,7 +353,7 @@ function buildLoopContext(media: MergeMediaContext, state: MergeSessionState): M
       media.outputPath,
       state.currentDelayMs,
       state.applyShortest,
-      true
+      false
     ),
     totalDuration: media.totalDuration,
     totalFrames: media.totalFrames,

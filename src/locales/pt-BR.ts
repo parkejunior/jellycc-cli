@@ -5,6 +5,7 @@ export default {
   fileNotFound: 'Arquivo não encontrado no disco!',
   filePassedNotFound: 'O arquivo passado como argumento não foi encontrado no disco!',
   readyToUse: 'Pronto para uso',
+  errorDiskSpace: 'Espaço em disco insuficiente. Necessário: {0}, Disponível: {1}.',
   
   // UI & Menus
   whatToDo: 'O que deseja fazer?',
@@ -20,6 +21,9 @@ export default {
   menuSilenceScan: '🔊 Silence Scan (Verificar quedas de áudio / Mudo)',
   menuRunRepairScan: '🔧 Executar Reparo Forçado + 🔍 Deep Scan',
   menuRunRepairOnly: '🔧 Executar Reparo Forçado apenas',
+  menuMergeOptimizedScan: '🚀 Executar conversão + 🔍 Deep Scan',
+  menuMergeOptimized: '🚀 Executar conversão apenas',
+  menuMergeLegacy: '🚀 Executar conversão (Legacy)',
   menuEditTags: '🏷️  Editar Tags das Faixas (Idioma/Título)',
   successMerge: '✔ Arquivo mesclado e verificado com sucesso! 🚀',
   successOp: '✔ Operação finalizada com sucesso! 🚀',

@@ -149,7 +149,7 @@ export function buildMergeCommand(
   outputPath: string,
   delayMs: number = 0,
   applyShortest: boolean = false,
-  useRepairMode: boolean = false
+  isLegacy: boolean = false
 ) {
   const mapArgs: string[] = [];
   const aCodecArgs: string[] = [];
@@ -158,6 +158,7 @@ export function buildMergeCommand(
   const repairParts: RepairCommandParts[] = [];
   const extraInputs: string[] = [];
 
+  const useRepairMode = !isLegacy;
   const tmpDir = useRepairMode ? initRepair(outputPath) : '';
   const vCodecArg = getMergeVideoCodecArg(selectedStreams, fallbackRules);
   const offsetA = buildOffsetArg(getSourceDelayMs(0, delayMs));
@@ -173,28 +174,33 @@ export function buildMergeCommand(
 
     if (stream.type === 'audio') {
       if (useRepairMode) {
-        const repairArgs = buildMergeRepairAudioArgs({
-          sourcePath: source.path,
-          streamIndex: stream.streamIndex,
-          tmpDir,
-          outputIndex: audioOutputIndex,
-          inputIndex: currentExtraInputIdx,
-          sourceFileIndex: source.fileIndex,
-          delayMs,
-          fullStream: source.info.streams.find((st) => st.index === stream.streamIndex)
-        });
+        if (source.fileIndex === 1) {
+          const repairArgs = buildMergeRepairAudioArgs({
+            sourcePath: source.path,
+            streamIndex: stream.streamIndex,
+            tmpDir,
+            outputIndex: audioOutputIndex,
+            inputIndex: currentExtraInputIdx,
+            sourceFileIndex: source.fileIndex,
+            delayMs,
+            fullStream: source.info.streams.find((st) => st.index === stream.streamIndex)
+          });
 
-        repairParts.push(repairArgs);
-        extraInputs.push(repairArgs.extraInput);
-        mapArgs.push(repairArgs.mapArg);
-        currentExtraInputIdx++;
+          repairParts.push(repairArgs);
+          extraInputs.push(repairArgs.extraInput);
+          mapArgs.push(repairArgs.mapArg);
+          currentExtraInputIdx++;
+        } else {
+          mapArgs.push(`-map 0:${stream.streamIndex}`);
+        }
       } else {
         mapArgs.push(`-map ${source.fileIndex}:${stream.streamIndex}`);
       }
 
+      const forceTranscode = useRepairMode && source.fileIndex === 1;
       aCodecArgs.push(
         ...getAudioArgs(stream, source.info, fallbackRules, audioOutputIndex, {
-          forceTranscode: useRepairMode
+          forceTranscode
         })
       );
       metaArgs.push(...getMetadataArgs(stream, 'a', audioOutputIndex));

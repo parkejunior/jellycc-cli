@@ -5,6 +5,7 @@ export default {
   fileNotFound: 'File not found on disk!',
   filePassedNotFound: 'The file passed as an argument was not found on disk!',
   readyToUse: 'Ready to use',
+  errorDiskSpace: 'Insufficient disk space. Required: {0}, Available: {1}.',
   
   // UI & Menus
   whatToDo: 'What do you want to do?',
@@ -20,6 +21,9 @@ export default {
   menuSilenceScan: '🔊 Silence Scan (Check for audio drops / Mute)',
   menuRunRepairScan: '🔧 Execute Forced Repair + 🔍 Deep Scan',
   menuRunRepairOnly: '🔧 Execute Forced Repair only',
+  menuMergeOptimizedScan: '🚀 Execute conversion + 🔍 Deep Scan',
+  menuMergeOptimized: '🚀 Execute conversion only',
+  menuMergeLegacy: '🚀 Execute conversion (Legacy)',
   menuEditTags: '🏷️  Edit Track Tags (Language/Title)',
   successMerge: '✔ File merged and verified successfully! 🚀',
   successOp: '✔ Operation finished successfully! 🚀',

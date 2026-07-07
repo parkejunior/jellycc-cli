@@ -93,7 +93,7 @@ describe('utils/builder.ts', () => {
       { streamIndex: 0, fileIndex: 1, type: 'audio', codec: 'aac', language: 'por' }
     ];
 
-    const result = buildMergeCommand(streams, mockInfoA, mockInfoB, mockRules, 'A.mkv', 'B.mkv', 'merged.mkv', 2000, true, false);
+    const result = buildMergeCommand(streams, mockInfoA, mockInfoB, mockRules, 'A.mkv', 'B.mkv', 'merged.mkv', 2000, true, true);
 
     expect({
       hasInputA: result.includes('-i "A.mkv"'),
@@ -124,7 +124,7 @@ describe('utils/builder.ts', () => {
       { streamIndex: 2, fileIndex: 1, type: 'subtitle', codec: 'ass' }
     ];
 
-    const result = buildMergeCommand(streams, mockInfoA, mockInfoB, mockRules, 'A.mkv', 'B.mkv', '/out/merged.mkv', 0, false, true);
+    const result = buildMergeCommand(streams, mockInfoA, mockInfoB, mockRules, 'A.mkv', 'B.mkv', '/out/merged.mkv', 0, false, false);
 
     expect({
       hasTempAudioRepair: result.includes('temp_audio_0.w64'),
@@ -141,5 +141,19 @@ describe('utils/builder.ts', () => {
       hasComplexMap1: true,
       hasComplexMap2: true
     });
+  });
+
+  test('buildMergeCommand with isLegacy = false (Optimized Repair) should skip extraction for Audio A but extract Audio B', () => {
+    const streams: SelectedStream[] = [
+      { streamIndex: 1, fileIndex: 0, type: 'audio', codec: 'ac3' },
+      { streamIndex: 0, fileIndex: 1, type: 'audio', codec: 'aac' }
+    ];
+
+    const result = buildMergeCommand(streams, mockInfoA, mockInfoB, mockRules, 'A.mkv', 'B.mkv', '/out/merged.mkv', 0, false, false);
+
+    expect(result.includes('temp_audio_0.w64')).toBe(false); // Audio A (no repair)
+    expect(result.includes('temp_audio_1.w64')).toBe(true);  // Audio B (repair)
+    expect(result.includes('-map 0:1')).toBe(true);          // Audio A (mapped from original)
+    expect(result.includes('-map 2:0')).toBe(true);          // Audio B (mapped from temp)
   });
 });
