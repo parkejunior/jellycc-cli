@@ -6,11 +6,13 @@ import type { FFprobeData } from '../types/media';
 
 export type SyncMenuOption = {
   label: string;
-  value: 'auto' | 'manual' | 'none';
+  value: 'auto' | 'manual' | 'none' | 'spectrum';
 };
 
 export function buildSyncOptions(exactDiffMs: number): SyncMenuOption[] {
   const options: SyncMenuOption[] = [];
+
+  options.push({ label: t('mergeSpectrumSync'), value: 'spectrum' });
 
   if (Math.abs(exactDiffMs) > 1000) {
     options.push({
@@ -24,7 +26,6 @@ export function buildSyncOptions(exactDiffMs: number): SyncMenuOption[] {
 
   return options;
 }
-
 const buildFileSummary = (info: FFprobeData) => {
   const duration = info.format?.duration ? formatDuration(Number.parseFloat(info.format.duration)) : 'N/A';
   const size = info.format?.size ? formatSize(Number.parseInt(info.format.size, 10)) : 'N/A';

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { confirm, groupMultiselect, log, note, select, text } from '@clack/prompts';
+import { confirm, groupMultiselect, log, note, select, text, spinner } from '@clack/prompts';
 import pc from 'picocolors';
 
 import { getPreferredVideoSource, getPrimaryVideoStream } from '../services/analyzer.ts';
@@ -11,11 +11,13 @@ import type { FFprobeData, SelectedStream } from '../types/media';
 import { buildMergeCommand } from '../utils/builder.ts';
 import { ValidationError } from '../utils/errors.ts';
 import { getMediaInfo } from '../utils/ffprobe.ts';
-import { calculateTotalFrames } from '../utils/formatters.ts';
+import { calculateTotalFrames, parseTimestampToSeconds, formatSecondsToTimestamp } from '../utils/formatters.ts';
 import { t } from '../utils/i18n.ts';
 import { editTagsMenu, handleExecutionMenu, onCancel, sanitizePath } from '../utils/ui.ts';
 import { buildSyncOptions, renderComparison } from '../views/mergeView.ts';
 import { buildGroupedOptions } from '../views/streamOptions.ts';
+import { calculateSpectrumDelay } from '../services/spectrumAnalyzer.ts';
+import { extractRawAudio } from '../utils/ffmpeg.ts';
 
 const fallbackRules = fallbackRulesData as FallbackRules;
 
@@ -72,7 +74,7 @@ export async function mergeCommand(_args: string[]) {
 
   if (Math.abs(media.durationDiffMs) > 1000) {
     note(pc.yellow(t('mergeDurationAlert')), t('durationAlertTitle'));
-    applySyncState(state, await promptSyncAdjustment(media.durationDiffMs, state));
+    applySyncState(state, await promptSyncAdjustment(media, state));
   }
 
   while (true) {
@@ -110,7 +112,7 @@ export async function mergeCommand(_args: string[]) {
     }
 
     if (result.action === 'adjust_sync') {
-      applySyncState(state, await promptSyncAdjustment(media.durationDiffMs, state));
+      applySyncState(state, await promptSyncAdjustment(media, state));
       continue;
     }
 
@@ -223,10 +225,10 @@ function buildStreamOptionSources(media: MergeMediaContext) {
 }
 
 async function promptSyncAdjustment(
-  durationDiffMs: number,
+  media: MergeMediaContext,
   currentState: MergeSyncState
 ): Promise<MergeSyncState> {
-  const options = buildSyncOptions(durationDiffMs);
+  const options = buildSyncOptions(media.durationDiffMs);
 
   const chosenSyncAction = onCancel(await select({
     message: t('mergeHowToSync'),
@@ -236,8 +238,51 @@ async function promptSyncAdjustment(
   let nextDelayMs = currentState.currentDelayMs;
   let nextApplyShortest = currentState.applyShortest;
 
-  if (chosenSyncAction === 'auto') {
-    nextDelayMs = durationDiffMs;
+  if (chosenSyncAction === 'spectrum') {
+    log.info(pc.cyan(t('mergeSpectrumHint')));
+    
+    const tsStr = onCancel(await text({
+      message: t('mergeAskTimestamp'),
+      placeholder: '00:15:30',
+      validate(value) {
+        if (!value || !value.includes(':')) return t('validNumber');
+      }
+    }));
+
+    // 10s of sample window to 30s search window
+    const durA = 10;
+    const durB = 30; 
+
+    const tsSecs = parseTimestampToSeconds(tsStr);
+    const tsBSecs = Math.max(0, tsSecs - 10); // Starts 10s before the timestamp
+    const startTsB = formatSecondsToTimestamp(tsBSecs);
+
+    const s = spinner();
+    s.start(t('mergeSpectrumExtracting'));
+
+    try {
+      const bufferA = await extractRawAudio(media.sourcePathA, tsStr, durA);
+      const bufferB = await extractRawAudio(media.sourcePathB, startTsB, durB);
+
+      s.message(t('mergeSpectrumCalculating'));
+
+      const rawOffsetMs = calculateSpectrumDelay(bufferA, bufferB);
+      const diffSecs = tsSecs - tsBSecs;
+      
+      const realDelayMs = rawOffsetMs - (diffSecs * 1000);
+      nextDelayMs = Math.round(realDelayMs * -1);
+
+      s.stop(pc.green(t('successOp')));
+      log.success(pc.green(t('mergeSpectrumResult', nextDelayMs)));
+      
+    } catch (err) {
+      s.stop(pc.red(t('mergeSpectrumFailed')));
+      if (err instanceof Error) {
+        log.error(err.message);
+      }
+    }
+  } else if (chosenSyncAction === 'auto') {
+    nextDelayMs = media.durationDiffMs;
   } else if (chosenSyncAction === 'manual') {
     const delayStr = onCancel(await text({
       message: t('mergeAskDelay'),

@@ -79,7 +79,7 @@ export default {
   mergeNone: 'Nenhuma',
   mergeSelectStreams: 'Selecione as faixas que deseja manter',
   mergeHowToSync: 'Como deseja ajustar a sincronia do Arquivo B?',
-  mergeAutoSync: '⏭️  Auto-alinhar ({0} para igualar ao Arquivo A)',
+  mergeAutoSync: '⏭️  Igualar Durações ({0} para igualar ao Arquivo A)',
   mergeManualSync: '✏️  Digitar valor manualmente',
   mergeNoSync: '❌  Não ajustar (0ms)',
   mergeAskDelay: 'Informe o atraso do Arquivo B em milissegundos (ex: 2000 para atrasar 2s, -500 para adiantar 0.5s):',
@@ -87,6 +87,15 @@ export default {
   mergeDurationAlert: '⚠ Atenção: Uma diferença na duração dos arquivos foi detectada. Isso pode causar falta de sincronia (lip-sync) no resultado final.',
   mergeModifyStreams: 'Modifique as faixas que deseja manter:',
   mergeCmdSuggested: 'Comando FFmpeg Sugerido (Merge)',
+
+  // Command: Merge (Spectrum Sync)
+  mergeSpectrumSync: '🎶 Smart Spectrum Sync (Auto-alinhamento por áudio)',
+  mergeAskTimestamp: 'Digite o momento do Arquivo A (Referência) para análise:',
+  mergeSpectrumHint: '💡 Dica: Escolha um momento sem falas/dublagem, de preferência com música ou sons ambientes marcantes.',
+  mergeSpectrumResult: 'Sincronia concluída! Compensação calculada: {0}ms',
+  mergeSpectrumExtracting: 'Extraindo frequências de áudio para comparação...',
+  mergeSpectrumCalculating: 'Calculando matriz de correlação cruzada...',
+  mergeSpectrumFailed: 'Falha ao analisar espectro de áudio.',
 
   // Scanners (FFprobe / FFmpeg)
   scanQuickStart: 'Executando Quick Scan de integridade...',

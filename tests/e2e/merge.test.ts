@@ -150,8 +150,6 @@ describe('E2E: JellyCC Merge Menu', () => {
     cli.write(Keys.Space);
     cli.write(Keys.Enter);
 
-    // await finishTagPromptWithoutChanges();
-
     await cli.waitForText('Suggested FFmpeg Command (Merge)');
     await openExecutionMenu();
     exitFromExecutionMenu();
@@ -166,7 +164,7 @@ describe('E2E: JellyCC Merge Menu', () => {
     expect(finalOutput).toContain('Clean command generated:');
     expect(finalOutput).toContain('Operation finished. 🚀');
   });
-
+  
   test('Should allow manual sync adjustment and apply strict cut (-shortest)', async () => {
     cli = new CliTester(['bun', 'run', 'src/index.ts', 'merge'], process.cwd());
 
@@ -176,7 +174,7 @@ describe('E2E: JellyCC Merge Menu', () => {
     await cli.waitForText('Duration Alert');
     await cli.waitForText('How do you want to adjust the sync for File B?');
 
-    cli.press(Keys.Down, 1);
+    cli.press(Keys.Down, 2);
     cli.write(Keys.Enter);
 
     await cli.waitForText('Enter the delay for File B in milliseconds');
@@ -242,5 +240,43 @@ describe('E2E: JellyCC Merge Menu', () => {
     expect(finalOutput).toContain('Suggested FFmpeg Command (Merge)');
     expect(finalOutput).toContain('Clean command generated:');
     expect(finalOutput).toContain('Operation finished. 🚀');
+  });
+
+  test('Should execute Spectrum Sync successfully and calculate compensation', async () => {
+    cli = new CliTester(['bun', 'run', 'src/index.ts', 'merge'], process.cwd());
+
+    await openMergePaths(longMergeFixture, longMergeFixture);
+    await acceptDefaultStreamSelection();
+
+    await cli.waitForText('Suggested FFmpeg Command (Merge)');
+    await openExecutionMenu();
+    cli.clearOutput();
+
+    cli.press(Keys.Down, 5);
+    cli.write(Keys.Enter);
+
+    await cli.waitForText('How do you want to adjust the sync for File B?');
+
+    cli.write(Keys.Enter);
+
+    await cli.waitForText('Enter the timestamp of File A (Reference) for analysis:');
+    cli.write('00:00:00');
+    cli.write(Keys.Enter);
+
+    await cli.waitForText('Sync complete! Calculated compensation: 0ms');
+
+    await cli.waitForText('Do you want to use Strict Mode');
+    cli.write(Keys.Enter);
+
+    await cli.waitForText('Suggested FFmpeg Command (Merge)');
+    await openExecutionMenu();
+    exitFromExecutionMenu();
+
+    const exitCode = await cli.waitForExit();
+    const finalOutput = cli.getOutput();
+
+    expect(exitCode).toBe(0);
+    expect(finalOutput).toContain('Sync complete! Calculated compensation: 0ms');
+    expect(finalOutput).toContain('Clean command generated:');
   });
 });
