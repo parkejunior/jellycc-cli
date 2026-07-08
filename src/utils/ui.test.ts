@@ -244,4 +244,82 @@ describe('utils/ui.ts', () => {
     expect(runSilenceSpy).not.toHaveBeenCalled();
     expect(result.action).toBe('exit');
   });
+
+  test('handleExecutionMenu should generate merge options and execute merge legacy', async () => {
+    (clack.select as any).mockResolvedValueOnce('run');
+
+    const runConvSpy = spyOn(ffmpeg, 'runConversion').mockResolvedValueOnce(undefined as any);
+
+    const result = await handleExecutionMenu({
+      ffmpegCmd: 'merge_cmd',
+      ffmpegRepairCmd: 'repair_cmd',
+      fullScanInputs: [],
+      fullScanMaps: [],
+      outputPath: 'out.mkv',
+      totalDuration: 100,
+      totalFrames: 2400,
+      isMerge: true
+    });
+
+    expect(clack.select).toHaveBeenCalled();
+    const calls = (clack.select as any).mock.calls;
+    const lastCall = calls[calls.length - 1][0];
+    expect(lastCall.options).toEqual(expect.arrayContaining([
+      expect.objectContaining({ value: 'run_repair_and_scan' }),
+      expect.objectContaining({ value: 'run_repair' }),
+      expect.objectContaining({ value: 'run' })
+    ]));
+
+    expect(runConvSpy).toHaveBeenCalledWith('merge_cmd', 100, 2400);
+    expect(result.action).toBe('done');
+  });
+
+  test('handleExecutionMenu should generate clean run options for just remux and execute clean only', async () => {
+    (clack.select as any).mockResolvedValueOnce('run');
+
+    const runConvSpy = spyOn(ffmpeg, 'runConversion').mockResolvedValueOnce(undefined as any);
+
+    const result = await handleExecutionMenu({
+      ffmpegCmd: 'remux_cmd',
+      fullScanInputs: [],
+      fullScanMaps: [],
+      outputPath: 'out.mkv',
+      totalDuration: 100,
+      totalFrames: 2400,
+      isJustRemux: true
+    });
+
+    expect(clack.select).toHaveBeenCalled();
+    const calls = (clack.select as any).mock.calls;
+    const lastCall = calls[calls.length - 1][0];
+    expect(lastCall.options).toEqual(expect.arrayContaining([
+      expect.objectContaining({ value: 'run_and_scan' }),
+      expect.objectContaining({ value: 'run' })
+    ]));
+
+    expect(runConvSpy).toHaveBeenCalledWith('remux_cmd', 100, 2400);
+    expect(result.action).toBe('done');
+  });
+
+  test('handleExecutionMenu should not show transcode or remux options when isPerfect is true', async () => {
+    (clack.select as any).mockResolvedValueOnce('exit');
+
+    const result = await handleExecutionMenu({
+      ffmpegCmd: 'cmd',
+      fullScanInputs: [],
+      fullScanMaps: [],
+      outputPath: 'out.mkv',
+      totalDuration: 100,
+      totalFrames: 2400,
+      isPerfect: true
+    });
+
+    expect(clack.select).toHaveBeenCalled();
+    const calls = (clack.select as any).mock.calls;
+    const lastCall = calls[calls.length - 1][0];
+    
+    const hasRun = lastCall.options.some((o: any) => o.value === 'run' || o.value === 'run_and_scan');
+    expect(hasRun).toBe(false);
+    expect(result.action).toBe('exit');
+  });
 });
