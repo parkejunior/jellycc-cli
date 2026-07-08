@@ -72,12 +72,16 @@ Se você quiser executar a análise completa, inclua o parâmetro `--deep-scan`:
 jellycc check [caminho/do/arquivo] --deep-scan
 ```
 
-### Merclagem
+### Mesclagem
 
 Para mesclar vários arquivos em um único MKV, execute o comando:
 ```bash
 jellycc merge
 ```
+
+> [!NOTE]
+> Por padrão, o JellyCC mescla os arquivos usando o **Optimized Full Repair** (extraindo e alinhando as streams individualmente para evitar problemas de sincronização e silêncio no final).
+> Você pode escolher o modo **Legacy** no menu para fazer um remux direto sem arquivos temporários, caso as streams de origem tenham estruturas e timestamps totalmente íntegros.
 
 ### Configuração
 

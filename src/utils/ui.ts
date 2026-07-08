@@ -60,21 +60,27 @@ export async function handleExecutionMenu(options: {
   while (true) {
     const menuOptions: Array<{ label: string; value: string }> = [];
 
-    if (!options.isPerfect) {
-      if (options.isJustRemux) {
-        menuOptions.push({ label: t('menuRunClean'), value: 'run_and_scan' });
-        menuOptions.push({ label: t('menuRunCleanOnly'), value: 'run' });
-      } else {
-        menuOptions.push({ label: t('menuRunTranscode'), value: 'run_and_scan' });
-        menuOptions.push({ label: t('menuRunTranscodeOnly'), value: 'run' });
+    if (options.isMerge) {
+      menuOptions.push({ label: t('menuMergeOptimizedScan'), value: 'run_repair_and_scan' });
+      menuOptions.push({ label: t('menuMergeOptimized'), value: 'run_repair' });
+      menuOptions.push({ label: pc.gray(t('menuMergeLegacy')), value: 'run' });
+    } else {
+      if (!options.isPerfect) {
+        if (options.isJustRemux) {
+          menuOptions.push({ label: t('menuRunClean'), value: 'run_and_scan' });
+          menuOptions.push({ label: t('menuRunCleanOnly'), value: 'run' });
+        } else {
+          menuOptions.push({ label: t('menuRunTranscode'), value: 'run_and_scan' });
+          menuOptions.push({ label: t('menuRunTranscodeOnly'), value: 'run' });
+        }
       }
-    }
 
-    if (options.ffmpegRepairCmd) {
-      if (fileHasErrors) {
-        menuOptions.push({ label: pc.yellow(t('menuRunRepairScan')), value: 'run_repair_and_scan' });
+      if (options.ffmpegRepairCmd) {
+        if (fileHasErrors) {
+          menuOptions.push({ label: pc.yellow(t('menuRunRepairScan')), value: 'run_repair_and_scan' });
+        }
+        menuOptions.push({ label: pc.yellow(t('menuRunRepairOnly')), value: 'run_repair' });
       }
-      menuOptions.push({ label: pc.yellow(t('menuRunRepairOnly')), value: 'run_repair' });
     }
 
     if (options.allowStreamSelection) {
