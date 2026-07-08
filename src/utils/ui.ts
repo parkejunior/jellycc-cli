@@ -63,7 +63,7 @@ export async function handleExecutionMenu(options: {
     if (options.isMerge) {
       menuOptions.push({ label: t('menuMergeOptimizedScan'), value: 'run_repair_and_scan' });
       menuOptions.push({ label: t('menuMergeOptimized'), value: 'run_repair' });
-      menuOptions.push({ label: t('menuMergeLegacy'), value: 'run' });
+      menuOptions.push({ label: pc.gray(t('menuMergeLegacy')), value: 'run' });
     } else {
       if (!options.isPerfect) {
         if (options.isJustRemux) {
