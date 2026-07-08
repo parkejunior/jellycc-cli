@@ -18,8 +18,11 @@ import { buildSyncOptions, renderComparison } from '../views/mergeView.ts';
 import { buildGroupedOptions } from '../views/streamOptions.ts';
 import { calculateSpectrumDelay } from '../services/spectrumAnalyzer.ts';
 import { extractRawAudio } from '../utils/ffmpeg.ts';
+import { buildAudioMaps, buildAudioLabels, buildSelectedAudioMaps, buildSelectedAudioLabels } from '../utils/mediaUtils.ts';
 
 const fallbackRules = fallbackRulesData as FallbackRules;
+const SPECTRUM_SAMPLE_WINDOW_SEC = 10;
+const SPECTRUM_SEARCH_WINDOW_SEC = 30;
 
 interface MergeSourcePaths {
   sourcePathA: string;
@@ -56,6 +59,10 @@ interface MergeLoopContext {
   totalFrames: number;
   fullScanInputs: string[];
   fullScanMaps: string[];
+  fullAudioScanMaps: string[];
+  fullAudioScanLabels: string[];
+  selectedAudioScanMaps: string[];
+  selectedAudioScanLabels: string[];
 }
 
 export async function mergeCommand(_args: string[]) {
@@ -87,6 +94,10 @@ export async function mergeCommand(_args: string[]) {
       ffmpegRepairCmd: context.ffmpegRepairCmd,
       fullScanInputs: context.fullScanInputs,
       fullScanMaps: context.fullScanMaps,
+      fullAudioScanMaps: context.fullAudioScanMaps,
+      fullAudioScanLabels: context.fullAudioScanLabels,
+      selectedAudioScanMaps: context.selectedAudioScanMaps,
+      selectedAudioScanLabels: context.selectedAudioScanLabels,
       outputPath: media.outputPath,
       totalDuration: context.totalDuration,
       totalFrames: context.totalFrames,
@@ -249,12 +260,11 @@ async function promptSyncAdjustment(
       }
     }));
 
-    // 10s of sample window to 30s search window
-    const durA = 10;
-    const durB = 30; 
+    const durA = SPECTRUM_SAMPLE_WINDOW_SEC;
+    const durB = SPECTRUM_SEARCH_WINDOW_SEC; 
 
     const tsSecs = parseTimestampToSeconds(tsStr);
-    const tsBSecs = Math.max(0, tsSecs - 10); // Starts 10s before the timestamp
+    const tsBSecs = Math.max(0, tsSecs - SPECTRUM_SAMPLE_WINDOW_SEC); // Starts before the timestamp
     const startTsB = formatSecondsToTimestamp(tsBSecs);
 
     const s = spinner();
@@ -342,7 +352,11 @@ function buildLoopContext(media: MergeMediaContext, state: MergeSessionState): M
     totalDuration: media.totalDuration,
     totalFrames: media.totalFrames,
     fullScanInputs: [media.sourcePathA, media.sourcePathB],
-    fullScanMaps: buildFullScanMaps(media)
+    fullScanMaps: buildFullScanMaps(media),
+    fullAudioScanMaps: buildFullAudioScanMaps(media),
+    fullAudioScanLabels: buildFullAudioScanLabels(media),
+    selectedAudioScanMaps: buildSelectedAudioMaps(state.selectedStreams),
+    selectedAudioScanLabels: buildSelectedAudioLabels(state.selectedStreams)
   };
 }
 
@@ -350,6 +364,20 @@ function buildFullScanMaps(media: MergeMediaContext) {
   return [
     ...buildSourceScanMaps(media.infoA, 0),
     ...buildSourceScanMaps(media.infoB, 1)
+  ];
+}
+
+function buildFullAudioScanMaps(media: MergeMediaContext) {
+  return [
+    ...buildAudioMaps(media.infoA.streams, 0),
+    ...buildAudioMaps(media.infoB.streams, 1)
+  ];
+}
+
+function buildFullAudioScanLabels(media: MergeMediaContext) {
+  return [
+    ...buildAudioLabels(media.infoA.streams),
+    ...buildAudioLabels(media.infoB.streams)
   ];
 }
 

@@ -29,6 +29,7 @@
 - 🔧 **Forced Repair** — Fixes files with corrupted timestamps via an intermediate pipeline (`.w64`/`.mp4`).
 - 🔬 **Quick Scan + Deep Scan** — Checks container integrity and analyzes frame by frame looking for artifacts and errors.
 - 🔬 **Myopic Scan** — Deep Scan restricted to selected tracks.
+- 🔊 **Silence Scan** — Analyze and identify extended periods of silence within audio tracks.
 - 🎛️ **Track Selection** — Choose which video, audio, and subtitle streams to keep in the final file.
 - 🎶 **Smart Spectrum Sync** — Automatically aligns audio tracks from different sources, using advanced waveform cross-correlation.
 - ⏱️ **Sync Adjustment / End Cut** — Defines time offset and end cut to avoid lip-sync issues.
@@ -102,6 +103,7 @@ After analyzing a file, an interactive menu is displayed with the following opti
 - ⏱️ **Adjust Sync / End Cut** — Defines time offset and end cut.
 - 🔍 **Deep Scan** — Frame-by-frame analysis of all tracks.
 - 🔬 **Myopic Scan** — Deep Scan only on selected tracks.
+- 🔊 **Silence Scan** — Detects long periods of silence in audio tracks.
 - 🏷️ **Edit Tags** — Edits language and title of each track.
 
 ## ⚙️ Configuration

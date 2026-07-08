@@ -139,7 +139,6 @@ describe('utils/ui.ts', () => {
     expect(result.action).toBe('done');
   });
 
-  // --- editTagsMenu ---
   test('editTagsMenu should initialize missing tags from ffprobe data and allow early exit', async () => {
     (clack.select as any).mockResolvedValueOnce(-1);
 
@@ -193,5 +192,48 @@ describe('utils/ui.ts', () => {
     const result = await editTagsMenu(selectedStreams, infoA);
 
     expect(result[0]).toMatchObject({ language: 'jpn', title: 'Original Mix' });
+  });
+
+  test('handleExecutionMenu should execute silence scan, update error state, and loop back', async () => {
+    (clack.select as any)
+      .mockResolvedValueOnce('silence_scan')
+      .mockResolvedValueOnce('exit');
+
+    const runSilenceSpy = spyOn(ffmpeg, 'runSilenceScan').mockResolvedValueOnce(true as any);
+
+    const result = await handleExecutionMenu({
+      ffmpegCmd: 'cmd',
+      fullScanInputs: ['full.mkv'],
+      fullScanMaps: ['0'],
+      fullAudioScanMaps: ['0:1'],
+      outputPath: 'out.mkv',
+      totalDuration: 100,
+      totalFrames: 2400
+    });
+
+    expect(runSilenceSpy).toHaveBeenCalledWith(['full.mkv'], ['0:1'], 100, []);
+    expect(result.action).toBe('exit');
+    expect(result.hasErrors).toBe(true);
+  });
+
+  test('handleExecutionMenu should bypass silence scan (no spawn) if no audio tracks are mapped', async () => {
+    (clack.select as any)
+      .mockResolvedValueOnce('silence_scan')
+      .mockResolvedValueOnce('exit');
+
+    const runSilenceSpy = spyOn(ffmpeg, 'runSilenceScan');
+
+    const result = await handleExecutionMenu({
+      ffmpegCmd: 'cmd',
+      fullScanInputs: ['full.mkv'],
+      fullScanMaps: ['0'],
+      fullAudioScanMaps: [],
+      outputPath: 'out.mkv',
+      totalDuration: 100,
+      totalFrames: 2400
+    });
+
+    expect(runSilenceSpy).not.toHaveBeenCalled();
+    expect(result.action).toBe('exit');
   });
 });

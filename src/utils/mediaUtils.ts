@@ -1,4 +1,4 @@
-import type { MediaStream } from '../types/media';
+import type { MediaStream, SelectedStream } from '../types/media';
 
 const IMAGE_SUBTITLE_CODECS = new Set(['hdmv_pgs_subtitle', 'pgs', 'dvd_subtitle', 'vobsub']);
 const ATTACHED_PIC_CODECS = new Set(['mjpeg', 'png', 'bmp']);
@@ -23,3 +23,15 @@ export const hasEmbeddedGarbage = (streams: MediaStream[]): boolean => streams.s
 
 export const filterGarbageStreams = (streams: MediaStream[]): MediaStream[] =>
   streams.filter((stream) => !isGarbageStream(stream));
+
+export const buildAudioMaps = (streams: MediaStream[], fileIndex: number = 0) =>
+  streams.filter(s => s.codec_type === 'audio').map(s => `${fileIndex}:${s.index}`);
+
+export const buildAudioLabels = (streams: MediaStream[]) =>
+  streams.filter(s => s.codec_type === 'audio').map(s => (s.tags?.language || 'und').toUpperCase());
+
+export const buildSelectedAudioMaps = (streams: SelectedStream[]) =>
+  streams.filter(s => s.type === 'audio').map(s => `${s.fileIndex ?? 0}:${s.streamIndex}`);
+
+export const buildSelectedAudioLabels = (streams: SelectedStream[]) =>
+  streams.filter(s => s.type === 'audio').map(s => (s.language || 'und').toUpperCase());

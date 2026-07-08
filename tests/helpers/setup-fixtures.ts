@@ -39,6 +39,21 @@ try {
     path.join(FIXTURES_DIR, 'needs_transcode.mkv')
   ]);
 
+  // No Audio
+  runFfmpeg('no_audio.mkv', [
+    '-f', 'lavfi', '-i', 'testsrc=duration=2:size=640x360:rate=24',
+    '-c:v', 'libx264',
+    path.join(FIXTURES_DIR, 'no_audio.mkv')
+  ]);
+
+  // Silence Clean (3 seconds of noise)
+  runFfmpeg('silence_clean.mkv', [
+    '-f', 'lavfi', '-i', 'testsrc=duration=3:size=640x360:rate=24',
+    '-f', 'lavfi', '-i', 'sine=frequency=1000:duration=3',
+    '-c:v', 'libx264', '-c:a', 'aac',
+    path.join(FIXTURES_DIR, 'silence_clean.mkv')
+  ]);
+
   // Garbage File (Video + Audio + Cover Art)
   const coverPath = path.join(FIXTURES_DIR, 'cover_temp.jpg');
   runFfmpeg('cover_temp.jpg', [

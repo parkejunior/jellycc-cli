@@ -13,7 +13,7 @@ import { buildCheckCommand } from '../utils/builder.ts';
 import { ValidationError } from '../utils/errors.ts';
 import { getMediaInfo, runQuickScan } from '../utils/ffprobe.ts';
 import { t } from '../utils/i18n.ts';
-import { filterGarbageStreams } from '../utils/mediaUtils.ts';
+import { filterGarbageStreams, buildAudioMaps, buildAudioLabels, buildSelectedAudioMaps, buildSelectedAudioLabels } from '../utils/mediaUtils.ts';
 import { editTagsMenu, handleExecutionMenu, onCancel, sanitizePath } from '../utils/ui.ts';
 import { renderActionPlan, renderMatrix } from '../views/checkView.ts';
 import { buildGroupedOptions } from '../views/streamOptions.ts';
@@ -35,8 +35,12 @@ interface CheckLoopContext {
   totalFrames: number;
   fullScanInputs: string[];
   fullScanMaps: string[];
+  fullAudioScanMaps: string[];
+  fullAudioScanLabels: string[];
   selectedScanInputs: string[];
   selectedScanMaps: string[];
+  selectedAudioScanMaps: string[];
+  selectedAudioScanLabels: string[];
 }
 
 export async function checkCommand(args: string[]) {
@@ -69,8 +73,12 @@ export async function checkCommand(args: string[]) {
       ffmpegRepairCmd: context.ffmpegRepairCmd,
       fullScanInputs: context.fullScanInputs,
       fullScanMaps: context.fullScanMaps,
+      fullAudioScanMaps: context.fullAudioScanMaps,
+      fullAudioScanLabels: context.fullAudioScanLabels,
       selectedScanInputs: context.selectedScanInputs,
       selectedScanMaps: context.selectedScanMaps,
+      selectedAudioScanMaps: context.selectedAudioScanMaps,
+      selectedAudioScanLabels: context.selectedAudioScanLabels,
       outputPath,
       totalDuration: context.totalDuration,
       totalFrames: context.totalFrames,
@@ -210,8 +218,12 @@ function buildLoopContext(
     totalFrames: diagnostic.metadata.totalFrames,
     fullScanInputs: [targetFile],
     fullScanMaps: ['0'],
+    fullAudioScanMaps: buildAudioMaps(probeData.streams, 0),
+    fullAudioScanLabels: buildAudioLabels(probeData.streams),
     selectedScanInputs: [targetFile],
-    selectedScanMaps: selectedStreams.map((stream) => `0:${stream.streamIndex}`)
+    selectedScanMaps: selectedStreams.map((stream) => `0:${stream.streamIndex}`),
+    selectedAudioScanMaps: buildSelectedAudioMaps(selectedStreams),
+    selectedAudioScanLabels: buildSelectedAudioLabels(selectedStreams)
   };
 }
 

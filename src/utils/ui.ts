@@ -1,6 +1,6 @@
-import { isCancel, select, outro, text, confirm } from '@clack/prompts';
+import { isCancel, select, outro, text, confirm, spinner } from '@clack/prompts';
 import pc from 'picocolors';
-import { runConversion, runDeepScan } from './ffmpeg.ts';
+import { runConversion, runDeepScan, runSilenceScan } from './ffmpeg.ts';
 import { getRepairOutputPath } from '../services/repair.ts';
 import { t } from './i18n.ts';
 import { UserCancelError } from './errors.ts';
@@ -26,8 +26,12 @@ export async function handleExecutionMenu(options: {
   ffmpegRepairCmd?: string;
   fullScanInputs: string[];
   fullScanMaps: string[];
+  fullAudioScanMaps?: string[];
+  fullAudioScanLabels?: string[];
   selectedScanInputs?: string[];
   selectedScanMaps?: string[];
+  selectedAudioScanMaps?: string[];
+  selectedAudioScanLabels?: string[];
   outputPath: string;
   totalDuration: number;
   totalFrames: number;
@@ -80,7 +84,8 @@ export async function handleExecutionMenu(options: {
         menuOptions.push({ label: t('menuDeepScanFull'), value: 'deep_scan_full' });
       }
     }
-
+    
+    menuOptions.push({ label: t('menuSilenceScan'), value: 'silence_scan' });
     menuOptions.push({ label: t('exit'), value: 'exit' });
 
     const action = onCancel(await select({
@@ -89,14 +94,32 @@ export async function handleExecutionMenu(options: {
     }));
 
     if (action === 'deep_scan_selected') {
-      fileHasErrors = await runDeepScan(options.selectedScanInputs!, options.selectedScanMaps!, options.totalDuration);
+      const dsErrors = await runDeepScan(options.selectedScanInputs!, options.selectedScanMaps!, options.totalDuration);
+      fileHasErrors = fileHasErrors || dsErrors;
       dsCompleted = true;
       continue;
-    } 
+    }
     
     if (action === 'deep_scan_full') {
-      fileHasErrors = await runDeepScan(options.fullScanInputs, options.fullScanMaps, options.totalDuration);
+      const dsErrors = await runDeepScan(options.fullScanInputs, options.fullScanMaps, options.totalDuration);
+      fileHasErrors = fileHasErrors || dsErrors;
       dsCompleted = true;
+      continue;
+    }
+
+    if (action === 'silence_scan') {
+      const inputs = options.selectedScanInputs || options.fullScanInputs;
+      const audioMaps = options.selectedAudioScanMaps || options.fullAudioScanMaps || [];
+      const audioLabels = options.selectedAudioScanLabels || options.fullAudioScanLabels || [];
+
+      if (audioMaps.length > 0) {
+        const silenceErrors = await runSilenceScan(inputs, audioMaps, options.totalDuration, audioLabels);
+        fileHasErrors = fileHasErrors || silenceErrors;
+      } else {
+        const scanSpinner = spinner();
+        scanSpinner.start(t('scanSilenceStart'));
+        scanSpinner.stop(pc.green(t('scanSilencePass')));
+      }
       continue;
     }
 
@@ -118,7 +141,8 @@ export async function handleExecutionMenu(options: {
       await runConversion(cmdToRun, options.totalDuration, options.totalFrames);
       
       if (action === 'run_and_scan' || action === 'run_repair_and_scan') {
-        await runDeepScan([actualOutputPath], ['0'], options.totalDuration);
+        const dsErrors = await runDeepScan([actualOutputPath], ['0'], options.totalDuration);
+        fileHasErrors = fileHasErrors || dsErrors;
       }
 
       const successMsg = options.isMerge ? t('successMerge') : t('successOp');
