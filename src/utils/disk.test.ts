@@ -1,11 +1,9 @@
-import { describe, expect, test, mock, afterEach } from "bun:test";
+import { describe, expect, test, mock, afterEach, spyOn, beforeAll, afterAll } from "bun:test";
+import * as i18n from "./i18n.ts";
 import { checkFreeDiskSpace } from "./disk.ts";
 import { JellyError } from "./errors.ts";
 
 const mockStatfs = mock();
-const mockT = mock((key: string, ...args: unknown[]) => {
-  return `${key}: ${args.join(", ")}`;
-});
 
 mock.module("fs", () => ({
   promises: {
@@ -13,14 +11,21 @@ mock.module("fs", () => ({
   },
 }));
 
-mock.module("./i18n.ts", () => ({
-  t: mockT,
-}));
-
 describe("utils/disk.ts", () => {
+  let spyT: any;
+
+  beforeAll(() => {
+    spyT = spyOn(i18n, "t").mockImplementation((key: string, ...args: unknown[]) => {
+      return `${key}: ${args.join(", ")}`;
+    });
+  });
+
+  afterAll(() => {
+    spyT.mockRestore();
+  });
+
   afterEach(() => {
     mockStatfs.mockReset();
-    mockT.mockClear();
   });
 
   test("should resolve when there is sufficient free disk space", async () => {
