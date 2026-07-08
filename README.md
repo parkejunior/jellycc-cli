@@ -79,6 +79,10 @@ To merge multiple files into a single MKV, run the command:
 jellycc merge
 ```
 
+> [!NOTE]
+> By default, JellyCC merges files using **Optimized Full Repair** (extracting and aligning streams individually to prevent sync issues and trailing silence). 
+> You can choose **Legacy** mode from the menu to do a direct remux without temp files if the source streams have fully healthy structures and timestamps.
+
 ### Configuration
 
 If you want to change the interface language or create a `rules.json` config file, run the command:
