@@ -17,17 +17,25 @@ describe('utils/ui.ts', () => {
     mock.restore();
   });
 
-  test('sanitizePath should remove surrounding quotes and trim whitespace', () => {
+  test('sanitizePath should remove surrounding quotes, escaped spaces, and Bash idioms', () => {
     expect({
       clean: sanitizePath('  /path/file.mkv  '),
       singleQuotes: sanitizePath("'./movie.mp4'"),
       doubleQuotes: sanitizePath('"C:\\video.avi"'),
-      empty: sanitizePath(null)
+      bashEscapedQuote: sanitizePath("X-Men '\\''97.mkv"),
+      escapedSpaces: sanitizePath("/My\\ Movie.mkv"),
+      empty: sanitizePath(null),
+      undef: sanitizePath(undefined),
+      blank: sanitizePath("")
     }).toMatchObject({
       clean: '/path/file.mkv',
       singleQuotes: './movie.mp4',
       doubleQuotes: 'C:\\video.avi',
-      empty: null
+      bashEscapedQuote: "X-Men '97.mkv",
+      escapedSpaces: '/My Movie.mkv',
+      empty: null,
+      undef: undefined,
+      blank: ""
     });
   });
 
