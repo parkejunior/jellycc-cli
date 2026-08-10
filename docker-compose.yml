@@ -1,0 +1,8 @@
+services:
+  jellycc:
+    build: .
+    image: jellycc-local
+    stdin_open: true
+    tty: true
+    volumes:
+      - ${MEDIA_DIR:-.}:/media

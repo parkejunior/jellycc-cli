@@ -51,6 +51,37 @@ Run the installation script:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/parkejunior/jellycc-cli/main/install.sh | bash
 ```
+## 🐳 Docker (macOS / arm64)
+
+The install script downloads a Linux ELF binary, which macOS cannot execute (`Exec format error`). Docker runs the TypeScript source directly via Bun on Linux.
+
+**Prerequisites:** Docker + Docker Compose
+
+**Build:**
+```bash
+docker compose build
+```
+
+**Run interactive:**
+```bash
+docker compose run --rm jellycc
+```
+
+**Run against a specific media directory:**
+```bash
+MEDIA_DIR=/path/to/media docker compose run --rm jellycc
+```
+
+**Run with a direct file argument:**
+```bash
+MEDIA_DIR=/path/to/media docker compose run --rm jellycc check "file.mkv"
+```
+
+> [!NOTE]
+> `MEDIA_DIR` mounts to `/media` inside the container. Defaults to the current directory if unset. Output files are written back to the same mounted directory.
+
+---
+
 ## 🚀 Usage
 
 ### Analysis and Cleanup
