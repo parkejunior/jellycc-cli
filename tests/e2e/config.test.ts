@@ -58,12 +58,35 @@ describe('E2E: JellyCC Config Menu', () => {
     expect(exitCode).toBe(0);
   });
 
+  test('Should run the --audio-lang flag directly without interactive menu', async () => {
+    cli = new CliTester(['bun', 'run', 'src/index.ts', 'config', '--audio-lang', 'por,eng'], process.cwd());
+
+    const exitCode = await cli.waitForExit();
+    const finalOutput = cli.getOutput();
+
+    expect(exitCode).toBe(0);
+    expect(finalOutput).toContain('por, eng');
+  });
+
+  test('Should run the --sub-lang flag directly without interactive menu', async () => {
+    cli = new CliTester(['bun', 'run', 'src/index.ts', 'config', '--sub-lang', 'por'], process.cwd());
+
+    const exitCode = await cli.waitForExit();
+    const finalOutput = cli.getOutput();
+
+    expect(exitCode).toBe(0);
+    expect(finalOutput).toContain('por');
+  });
+
   // Rules
   test('Should generate rules template file', async () => {
     cli = new CliTester(['bun', 'run', 'src/index.ts', 'config'], process.cwd());
 
     await cli.waitForText('What do you want to do?');
 
+    // Move down to 'Generate rules template' option (audio, sub, lang, init)
+    cli.write(Keys.Down);
+    cli.write(Keys.Down);
     cli.write(Keys.Down);
     cli.write(Keys.Enter);
 

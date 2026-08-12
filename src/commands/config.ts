@@ -1,9 +1,10 @@
-import { select, outro } from '@clack/prompts';
+import { select, text, outro } from '@clack/prompts';
 import pc from 'picocolors';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { setLanguage, availableLanguages, t } from '../utils/i18n.ts';
+import { getUserLanguagePreferences, setUserLanguagePreferences } from '../utils/language.ts';
 import { onCancel } from '../utils/ui.ts';
 import { JellyError } from '../utils/errors.ts';
 import type { FallbackRules } from '../types/config';
@@ -41,6 +42,10 @@ function generateTemplate() {
   outro(pc.green(t('configTemplateGenerated', pc.cyan(templatePath))));
 }
 
+function parseCommaList(input: string): string[] {
+  return input.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+}
+
 async function promptLanguage() {
   const options = availableLanguages.map(lang => ({
     label: displayNames[lang] || lang,
@@ -58,6 +63,38 @@ async function promptLanguage() {
   } catch {
     throw new JellyError(t('langError'), 'LANG_SAVE_ERROR');
   }
+}
+
+async function promptPreferredAudio() {
+  const current = getUserLanguagePreferences().preferredAudio;
+  const initialValue = current.join(', ');
+
+  const rawInput = onCancel(await text({
+    message: t('configAskAudioLang'),
+    initialValue,
+    placeholder: 'eng, spa, por'
+  }));
+
+  const list = parseCommaList(rawInput);
+  setUserLanguagePreferences(list, undefined);
+  const displayValue = list.length > 0 ? list.join(', ') : t('configLangCleared');
+  outro(pc.green(t('configAudioLangSaved', displayValue)));
+}
+
+async function promptPreferredSubtitles() {
+  const current = getUserLanguagePreferences().preferredSubtitles;
+  const initialValue = current.join(', ');
+
+  const rawInput = onCancel(await text({
+    message: t('configAskSubLang'),
+    initialValue,
+    placeholder: 'eng, spa, por'
+  }));
+
+  const list = parseCommaList(rawInput);
+  setUserLanguagePreferences(undefined, list);
+  const displayValue = list.length > 0 ? list.join(', ') : t('configLangCleared');
+  outro(pc.green(t('configSubLangSaved', displayValue)));
 }
 
 export async function configCommand(args: string[]) {
@@ -81,11 +118,33 @@ export async function configCommand(args: string[]) {
     }
   }
 
+  if (args.includes('--audio-lang')) {
+    const idx = args.indexOf('--audio-lang') + 1;
+    const value = args[idx] ?? '';
+    const list = parseCommaList(value);
+    setUserLanguagePreferences(list, undefined);
+    const displayValue = list.length > 0 ? list.join(', ') : t('configLangCleared');
+    outro(pc.green(t('configAudioLangSaved', displayValue)));
+    return;
+  }
+
+  if (args.includes('--sub-lang')) {
+    const idx = args.indexOf('--sub-lang') + 1;
+    const value = args[idx] ?? '';
+    const list = parseCommaList(value);
+    setUserLanguagePreferences(undefined, list);
+    const displayValue = list.length > 0 ? list.join(', ') : t('configLangCleared');
+    outro(pc.green(t('configSubLangSaved', displayValue)));
+    return;
+  }
+
   // Interactive Menu 
   const action = onCancel(await select({
     message: pc.bold(t('whatToDo')),
     options: [
       { label: t('configMenuLang'), value: 'lang' },
+      { label: t('configMenuAudioLang'), value: 'audio' },
+      { label: t('configMenuSubLang'), value: 'sub' },
       { label: t('configMenuInit'), value: 'init' },
       { label: t('exit'), value: 'exit' }
     ]
@@ -95,9 +154,14 @@ export async function configCommand(args: string[]) {
     return;
   }
 
-  if (action === 'lang') {
+  if (action === 'audio') {
+    await promptPreferredAudio();
+  } else if (action === 'sub') {
+    await promptPreferredSubtitles();
+  } else if (action === 'lang') {
     await promptLanguage();
   } else if (action === 'init') {
     generateTemplate();
   }
 }
+
