@@ -6,3 +6,4 @@ services:
     tty: true
     volumes:
       - ${MEDIA_DIR:-.}:/media
+      - ${CONFIG_DIR:-~/.config/jellycc}:/root/.config/jellycc
