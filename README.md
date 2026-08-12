@@ -42,45 +42,42 @@
 
 - **[FFmpeg & FFprobe](https://www.ffmpeg.org/download.html)** (Installed globally on the system)
 
-## 📦 Installation
+## 📦 Installation (Linux)
 
 > [!IMPORTANT]
-> Make sure **FFmpeg** and **FFprobe** are installed globally on your system, as JellyCC strictly depends on them to perform analysis and conversions.
+> The installation script currently downloads native binaries for **Linux** (x86_64 / ARM64). macOS native binaries are coming soon! For **Windows**, use **Docker** below.
 
 Run the installation script:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/parkejunior/jellycc-cli/main/install.sh | bash
 ```
-## 🐳 Docker (macOS / arm64)
+## 🐳 Docker
 
-The install script downloads a Linux ELF binary, which macOS cannot execute (`Exec format error`). Docker runs the TypeScript source directly via Bun on Linux.
+Run JellyCC in a container on any operating system (**Linux**, **macOS**, or **Windows / WSL2**) without needing FFmpeg installed on your host system.
 
-**Prerequisites:** Docker + Docker Compose
+### Quick Start (Official Image)
 
-**Build:**
+Run directly against your media directory:
+
 ```bash
-docker compose build
+docker run --rm -it -v /path/to/media:/media ghcr.io/parkejunior/jellycc-cli:latest
 ```
 
-**Run interactive:**
+### Using Docker Compose
+
 ```bash
+# Run in the current directory
 docker compose run --rm jellycc
-```
 
-**Run against a specific media directory:**
-```bash
+# Run against a specific media folder
 MEDIA_DIR=/path/to/media docker compose run --rm jellycc
-```
 
-**Run with a direct file argument:**
-```bash
+# Run a specific command
 MEDIA_DIR=/path/to/media docker compose run --rm jellycc check "file.mkv"
 ```
 
 > [!NOTE]
-> `MEDIA_DIR` mounts to `/media` inside the container. Defaults to the current directory if unset. Output files are written back to the same mounted directory.
-
----
+> `MEDIA_DIR` mounts to `/media` inside the container (defaults to current directory if unset). Output files are saved back to the mounted folder. [User settings](docs/CONFIGURATION.md#docker-configuration) in `~/.config/jellycc` are persisted when using Docker Compose.
 
 ## 🚀 Usage
 
