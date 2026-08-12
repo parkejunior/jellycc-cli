@@ -14,6 +14,7 @@ import { ValidationError } from '../utils/errors.ts';
 import { getMediaInfo, runQuickScan } from '../utils/ffprobe.ts';
 import { t } from '../utils/i18n.ts';
 import { filterGarbageStreams, buildAudioMaps, buildAudioLabels, buildSelectedAudioMaps, buildSelectedAudioLabels } from '../utils/mediaUtils.ts';
+import { getUserLanguagePreferences } from '../utils/language.ts';
 import { editTagsMenu, handleExecutionMenu, onCancel, sanitizePath } from '../utils/ui.ts';
 import { renderActionPlan, renderMatrix } from '../views/checkView.ts';
 import { buildGroupedOptions } from '../views/streamOptions.ts';
@@ -159,13 +160,43 @@ async function shouldAutoCleanSelection(diagnostic: CheckDiagnostic) {
 }
 
 async function buildInitialSelection(probeData: FFprobeData, shouldAutoClean: boolean) {
-  let selectedStreams = probeData.streams.map<SelectedStream>((stream) => ({
-    streamIndex: stream.index,
-    type: stream.codec_type,
-    codec: stream.codec_name
-  }));
+  const prefs = getUserLanguagePreferences();
+  let initialStreams: SelectedStream[];
 
-  selectedStreams = await editTagsMenu(selectedStreams, probeData, undefined, true);
+  const hasAudioPref = prefs.preferredAudio.length > 0;
+  const hasSubPref = prefs.preferredSubtitles.length > 0;
+
+  if (hasAudioPref || hasSubPref) {
+    const { initialValues, hasAudioFallback } = buildGroupedOptions({
+      sources: [{ info: probeData }],
+      includeAttachedPictures: true,
+      includeAudioTitle: true,
+      preferredAudio: prefs.preferredAudio,
+      preferredSubtitles: prefs.preferredSubtitles
+    });
+
+    if (hasAudioFallback) {
+      log.warn(pc.yellow(t('noAudioMatchWarn', prefs.preferredAudio.join(', '))));
+    }
+
+    const videoStreams = probeData.streams
+      .filter((s) => s.codec_type === 'video')
+      .map<SelectedStream>((s) => ({ streamIndex: s.index, type: s.codec_type, codec: s.codec_name }));
+
+    const selectedIndices = new Set(initialValues.map((v) => v.streamIndex));
+    initialStreams = [
+      ...videoStreams.filter((v) => !selectedIndices.has(v.streamIndex)),
+      ...initialValues
+    ];
+  } else {
+    initialStreams = probeData.streams.map<SelectedStream>((stream) => ({
+      streamIndex: stream.index,
+      type: stream.codec_type,
+      codec: stream.codec_name
+    }));
+  }
+
+  let selectedStreams = await editTagsMenu(initialStreams, probeData, undefined, true);
 
   if (!shouldAutoClean) {
     return selectedStreams;
@@ -246,11 +277,14 @@ function showCommandPreview(context: CheckLoopContext) {
 }
 
 async function promptStreamSelection(selectedStreams: SelectedStream[], probeData: FFprobeData) {
+  const prefs = getUserLanguagePreferences();
   const { groups, initialValues } = buildGroupedOptions({
     sources: [{ info: probeData }],
     currentSelected: selectedStreams,
     includeAttachedPictures: true,
-    includeAudioTitle: true
+    includeAudioTitle: true,
+    preferredAudio: prefs.preferredAudio,
+    preferredSubtitles: prefs.preferredSubtitles
   });
 
   const nextSelection = onCancel(await groupMultiselect<SelectedStream>({
@@ -262,3 +296,4 @@ async function promptStreamSelection(selectedStreams: SelectedStream[], probeDat
 
   return editTagsMenu(nextSelection, probeData, undefined, true);
 }
+
