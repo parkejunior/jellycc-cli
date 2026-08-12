@@ -20,6 +20,7 @@ import { buildGroupedOptions } from '../views/streamOptions.ts';
 import { calculateSpectrumDelay } from '../services/spectrumAnalyzer.ts';
 import { extractRawAudio } from '../utils/ffmpeg.ts';
 import { buildAudioMaps, buildAudioLabels, buildSelectedAudioMaps, buildSelectedAudioLabels } from '../utils/mediaUtils.ts';
+import { getUserLanguagePreferences } from '../utils/language.ts';
 
 const fallbackRules = fallbackRulesData as FallbackRules;
 const SPECTRUM_SAMPLE_WINDOW_SEC = 10;
@@ -199,12 +200,19 @@ function showComparison(media: MergeMediaContext) {
 }
 
 async function promptInitialStreamSelection(media: MergeMediaContext) {
-  const { groups, initialValues } = buildGroupedOptions({
+  const prefs = getUserLanguagePreferences();
+  const { groups, initialValues, hasAudioFallback } = buildGroupedOptions({
     sources: buildStreamOptionSources(media),
     preferredSourceLabel: media.suggestedVideo,
     includeAttachedPictures: false,
-    includeAudioTitle: false
+    includeAudioTitle: false,
+    preferredAudio: prefs.preferredAudio,
+    preferredSubtitles: prefs.preferredSubtitles
   });
+
+  if (hasAudioFallback) {
+    log.warn(pc.yellow(t('noAudioMatchWarn', prefs.preferredAudio.join(', '))));
+  }
 
   const selectedStreams = onCancel(await groupMultiselect<SelectedStream>({
     message: `${t('mergeSelectStreams')} (${t('fileSuggest', media.suggestedVideo)})`,
@@ -217,11 +225,14 @@ async function promptInitialStreamSelection(media: MergeMediaContext) {
 }
 
 async function promptStreamSelection(selectedStreams: SelectedStream[], media: MergeMediaContext) {
+  const prefs = getUserLanguagePreferences();
   const { groups, initialValues } = buildGroupedOptions({
     sources: buildStreamOptionSources(media),
     currentSelected: selectedStreams,
     includeAttachedPictures: false,
-    includeAudioTitle: false
+    includeAudioTitle: false,
+    preferredAudio: prefs.preferredAudio,
+    preferredSubtitles: prefs.preferredSubtitles
   });
 
   const nextSelection = onCancel(await groupMultiselect<SelectedStream>({

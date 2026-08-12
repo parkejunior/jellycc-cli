@@ -138,6 +138,14 @@ export default {
   // Comando: Config
   configMenuLang: '🌐 Alterar Idioma / Change Language',
   configMenuInit: '⚙️  Gerar template de regras (rules.example.json)',
+  configMenuAudioLang: '🔊 Configurar Idiomas de Áudio Preferidos',
+  configMenuSubLang: '💬 Configurar Idiomas de Legenda Preferidos',
+  configAskAudioLang: 'Digite os idiomas de áudio preferidos (separados por vírgula). Deixe em branco para todos:',
+  configAskSubLang: 'Digite os idiomas de legenda preferidos (separados por vírgula). Deixe em branco para todos:',
+  configAudioLangSaved: '✔ Idiomas de áudio preferidos salvos: {0}',
+  configSubLangSaved: '✔ Idiomas de legenda preferidos salvos: {0}',
+  configLangCleared: 'todos (sem filtro)',
+  noAudioMatchWarn: 'Nenhum áudio bateu com seus idiomas preferidos ({0}). Mantendo todas as trilhas de áudio para evitar vídeo mudo.',
   configTemplateGenerated: '✔ Template gerado em:\n  {0}\n\n💡 Renomeie para "rules.json" para usá-lo.',
   langChangedTo: '✔ Idioma alterado para:',
 

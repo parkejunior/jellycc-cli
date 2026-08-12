@@ -138,6 +138,14 @@ export default {
   // Command: Config
   configMenuLang: '🌐 Change Language',
   configMenuInit: '⚙️  Generate rules template (rules.example.json)',
+  configMenuAudioLang: '🔊 Configure Preferred Audio Languages',
+  configMenuSubLang: '💬 Configure Preferred Subtitle Languages',
+  configAskAudioLang: 'Enter preferred audio languages (comma separated). Leave blank for all:',
+  configAskSubLang: 'Enter preferred subtitle languages (comma separated). Leave blank for all:',
+  configAudioLangSaved: '✔ Preferred audio languages saved: {0}',
+  configSubLangSaved: '✔ Preferred subtitle languages saved: {0}',
+  configLangCleared: 'all (no filter)',
+  noAudioMatchWarn: 'No audio matched your preferred languages ({0}). Keeping all audio streams to prevent silent video.',
   configTemplateGenerated: '✔ Template generated at:\n  {0}\n\n💡 Rename to "rules.json" to use it.',
   langChangedTo: '✔ Language changed to:',
 

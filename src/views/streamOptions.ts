@@ -2,6 +2,7 @@ import { t } from '../utils/i18n.ts';
 import pc from 'picocolors';
 import { formatFps, formatSubtitleCodec, formatChannels } from '../utils/formatters.ts';
 import { isAttachedPic, isImageSubtitle } from '../utils/mediaUtils.ts';
+import { matchesLanguage } from '../utils/language.ts';
 import type { FFprobeData, GroupedStreamOptions, SelectedStream } from '../types/media';
 
 export interface StreamOptionSource {
@@ -16,11 +17,14 @@ export interface BuildStreamOptionsParams {
   preferredSourceLabel?: string;
   includeAttachedPictures?: boolean;
   includeAudioTitle?: boolean;
+  preferredAudio?: string[];
+  preferredSubtitles?: string[];
 }
 
 export interface BuildStreamOptionsResult {
   groups: GroupedStreamOptions;
   initialValues: SelectedStream[];
+  hasAudioFallback?: boolean;
 }
 
 const matchesSelectedStream = (left: SelectedStream, right: SelectedStream) => {
@@ -70,6 +74,7 @@ export function buildGroupedOptions(params: BuildStreamOptionsParams): BuildStre
     [groupSubs]: []
   };
   const initialValues: SelectedStream[] = [];
+  const allAudioStreams: SelectedStream[] = [];
 
   params.sources.forEach((source) => {
     source.info.streams.forEach((stream) => {
@@ -96,6 +101,7 @@ export function buildGroupedOptions(params: BuildStreamOptionsParams): BuildStre
         }
       } else if (stream.codec_type === 'audio') {
         label = formatAudioLabel(stream, params.includeAudioTitle ?? true);
+        allAudioStreams.push(value);
       } else if (stream.codec_type === 'subtitle') {
         label = formatSubtitleLabel(stream);
       } else {
@@ -112,15 +118,43 @@ export function buildGroupedOptions(params: BuildStreamOptionsParams): BuildStre
         if (params.currentSelected.some((selected) => matchesSelectedStream(selected, value))) {
           initialValues.push(value);
         }
-      } else if (params.preferredSourceLabel && source.label === params.preferredSourceLabel && stream.codec_type === 'video') {
-        initialValues.push(value);
+      } else {
+        // Initial Selection without prior currentSelected
+        if (stream.codec_type === 'video') {
+          if (params.preferredSourceLabel && source.label === params.preferredSourceLabel) {
+            initialValues.push(value);
+          }
+        } else if (stream.codec_type === 'audio') {
+          if (params.preferredAudio && params.preferredAudio.length > 0) {
+            if (matchesLanguage(stream.tags?.language, params.preferredAudio)) {
+              initialValues.push(value);
+            }
+          }
+        } else if (stream.codec_type === 'subtitle') {
+          if (params.preferredSubtitles && params.preferredSubtitles.length > 0) {
+            if (matchesLanguage(stream.tags?.language, params.preferredSubtitles)) {
+              initialValues.push(value);
+            }
+          }
+        }
       }
     });
   });
+
+  let hasAudioFallback = false;
+  // Audio fallback check: if preferredAudio was configured, audio streams exist, but none matched
+  if (!params.currentSelected && params.preferredAudio && params.preferredAudio.length > 0 && allAudioStreams.length > 0) {
+    const selectedAudioCount = initialValues.filter((s) => s.type === 'audio').length;
+    if (selectedAudioCount === 0) {
+      initialValues.push(...allAudioStreams);
+      hasAudioFallback = true;
+    }
+  }
 
   (Object.keys(groups) as Array<keyof GroupedStreamOptions>).forEach((key) => {
     if (groups[key]!.length === 0) delete groups[key];
   });
 
-  return { groups, initialValues };
+  return { groups, initialValues, hasAudioFallback };
 }
+
