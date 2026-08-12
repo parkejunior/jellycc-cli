@@ -8,12 +8,16 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  packages: write
 
 jobs:
   release-please:
-    name: Release Please and Build
+    name: Release Please
     runs-on: ubuntu-latest
-    
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+
     steps:
       - name: Run Release Please
         id: release
@@ -22,28 +26,63 @@ jobs:
           token: ${{ secrets.RELEASE_PLEASE_PAT }}
           release-type: node
 
+  build-binaries:
+    name: Build Binaries
+    runs-on: ubuntu-latest
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+
+    steps:
       - name: Checkout source code
-        if: ${{ steps.release.outputs.release_created }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Bun
-        if: ${{ steps.release.outputs.release_created }}
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
       - name: Install dependencies
-        if: ${{ steps.release.outputs.release_created }}
         run: bun install
 
-      - name: Compile Binaries (Linux x64 and ARM64)
-        if: ${{ steps.release.outputs.release_created }}
+      - name: Compile Binaries (Linux x64 e ARM64)
         run: |
           bun build ./src/index.ts --compile --target=bun-linux-x64 --outfile jellycc-linux-x64
           bun build ./src/index.ts --compile --target=bun-linux-arm64 --outfile jellycc-linux-arm64
 
       - name: Upload Release Assets
-        if: ${{ steps.release.outputs.release_created }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload ${{ steps.release.outputs.tag_name }} jellycc-linux-x64 jellycc-linux-arm64
+        run: gh release upload ${{ needs.release-please.outputs.tag_name }} jellycc-linux-x64 jellycc-linux-arm64
+
+  build-docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v7
+        
+      - name: Set up QEMU (Multi-arch support: amd64 e arm64)
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry (GHCR)
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ needs.release-please.outputs.tag_name }}
