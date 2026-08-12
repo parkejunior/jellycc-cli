@@ -44,7 +44,7 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Compile Binaries (Linux x64 e ARM64)
+      - name: Compile Binaries (Linux x64 and ARM64)
         run: |
           bun build ./src/index.ts --compile --target=bun-linux-x64 --outfile jellycc-linux-x64
           bun build ./src/index.ts --compile --target=bun-linux-arm64 --outfile jellycc-linux-arm64
@@ -64,7 +64,7 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v7
         
-      - name: Set up QEMU (Multi-arch support: amd64 e arm64)
+      - name: Set up QEMU (Multi-arch support)
         uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
