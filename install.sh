@@ -4,6 +4,15 @@ set -e
 
 echo "🚀 Starting JellyCC installation..."
 
+# Check if ffmpeg and ffprobe are installed
+if ! command -v ffmpeg &> /dev/null || ! command -v ffprobe &> /dev/null; then
+    echo "✖ Error: FFmpeg and FFprobe are required but could not be found."
+    echo ""
+    echo "💡 Please install FFmpeg and FFprobe on your system, or use Docker:"
+    echo "   docker run --rm -it -v \$(pwd):/media ghcr.io/parkejunior/jellycc-cli:latest"
+    exit 1
+fi
+
 # Detect OS architecture
 ARCH=$(uname -m)
 if [ "$ARCH" = "x86_64" ]; then
