@@ -19,6 +19,8 @@ export interface FallbackRules {
 
 export interface UserSettings {
   lang: 'pt-BR' | 'en-US';
+  preferredAudio?: string[];
+  preferredSubtitles?: string[];
 }
 
 export type SupportDecision = boolean | string;
