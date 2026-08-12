@@ -1,7 +1,7 @@
 services:
   jellycc:
+    image: ghcr.io/parkejunior/jellycc-cli:latest
     build: .
-    image: jellycc-local
     stdin_open: true
     tty: true
     volumes:
