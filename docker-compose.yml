@@ -1,0 +1,9 @@
+services:
+  jellycc:
+    image: ghcr.io/parkejunior/jellycc-cli:latest
+    build: .
+    stdin_open: true
+    tty: true
+    volumes:
+      - ${MEDIA_DIR:-.}:/media
+      - ${CONFIG_DIR:-~/.config/jellycc}:/root/.config/jellycc

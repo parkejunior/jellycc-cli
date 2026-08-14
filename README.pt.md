@@ -45,12 +45,41 @@
 ## 📦 Instalação
 
 > [!IMPORTANT]
-> Certifique-se de que o **FFmpeg** e o **FFprobe** estejam instalados no seu sistema de forma global, pois o JellyCC depende estritamente deles para realizar as análises e conversões.
+> O script de instalação atualmente baixa binários nativos para **Linux** (x86_64 / ARM64). O suporte nativo a macOS estará disponível em breve! Para **Windows**, utilize o **Docker** abaixo.
 
 Execute o script de instalação:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/parkejunior/jellycc-cli/main/install.sh | bash
 ```
+
+## 🐳 Docker
+
+Execute o JellyCC em um container em qualquer sistema operacional (**Linux**, **macOS** ou **Windows / WSL2**) sem precisar instalar o FFmpeg no seu sistema.
+
+### Uso Rápido (Imagem Oficial)
+
+Execute diretamente apontando para a sua pasta de mídias:
+
+```bash
+docker run --rm -it -v /caminho/para/midias:/media ghcr.io/parkejunior/jellycc-cli:latest
+```
+
+### Usando Docker Compose
+
+```bash
+# Executar na pasta atual
+docker compose run --rm jellycc
+
+# Executar em uma pasta de mídias específica
+MEDIA_DIR=/caminho/para/midias docker compose run --rm jellycc
+
+# Executar um comando específico
+MEDIA_DIR=/caminho/para/midias docker compose run --rm jellycc check "video.mkv"
+```
+
+> [!NOTE]
+> `MEDIA_DIR` é montado em `/media` dentro do container (padrão `.`). Os arquivos gerados são salvos na mesma pasta montada. Ao usar o Docker Compose, as [configurações](docs/CONFIGURATION.pt.md#configuração-no-docker) em `~/.config/jellycc` são salvas de forma persistente.
+
 ## 🚀 Uso
 
 ### Analise e limpeza

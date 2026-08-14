@@ -146,3 +146,37 @@ O bitrate de saída é calculado automaticamente: `112 kbps × número de canais
 | `dts` | `eac3` | `dts` não tem Direct Play na maioria dos browsers |
 | `alac` | `flac` | Ambos lossless; FLAC tem suporte mais amplo |
 | `default` | `aac` | Maior compatibilidade universal |
+
+## Configuração no Docker
+
+Ao executar o JellyCC dentro do Docker, os arquivos de configuração (`config.json` e `rules.json`) ficam armazenados em `/root/.config/jellycc/` dentro do container.
+
+Para manter suas preferências e regras de conversão salvas de forma persistente entre as execuções do container, monte o diretório de configurações do seu sistema hospedeiro:
+
+### Usando Docker Run
+
+```bash
+docker run --rm -it \
+  -v /caminho/para/midias:/media \
+  -v ~/.config/jellycc:/root/.config/jellycc \
+  ghcr.io/parkejunior/jellycc-cli:latest
+```
+
+### Usando Docker Compose
+
+O arquivo `docker-compose.yml` já mapeia automaticamente o diretório de configurações da sua máquina:
+
+```yaml
+volumes:
+  - ${MEDIA_DIR:-.}:/media
+  - ${CONFIG_DIR:-~/.config/jellycc}:/root/.config/jellycc
+```
+
+Se quiser usar um diretório de configurações customizado via Docker Compose, defina a variável `CONFIG_DIR`:
+
+```bash
+CONFIG_DIR=/caminho/para/config docker compose run --rm jellycc
+```
+
+> [!NOTE]
+> No Windows (PowerShell / CMD), substitua `~/.config/jellycc` por `$env:USERPROFILE\.config\jellycc` ou `%USERPROFILE%\.config\jellycc`.
