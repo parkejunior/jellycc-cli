@@ -31,7 +31,7 @@
 - 🔬 **Myopic Scan** — Deep Scan restrito apenas às faixas selecionadas.
 - 🔊 **Silence Scan** — Analisar e identificar longos períodos de silêncio nas faixas de áudio.
 - 🎛️ **Seleção de Faixas** — Escolha quais streams de vídeo, áudio e legenda manter no arquivo final.
-- 🎶 **Smart Spectrum Sync** — Alinha automaticamente faixas de áudio de origens diferentes, usando correlação matemática de ondas sonoras.
+- 🎶 **[Smart Spectrum Sync](docs/features/SMART_SPECTRUM_SYNC.pt.md)** — Alinha automaticamente faixas de áudio de origens diferentes, usando correlação matemática de ondas sonoras.
 - ⏱️ **Ajuste de Sincronia / Corte Final** — Define offset temporal e corte final para evitar problemas de lip-sync.
 - 🔀 **Mesclagem de Arquivos** — Une faixas de dois arquivos em um único MKV, com sync automático/manual e Modo Estrito.
 - 🏷️ **Edição de Tags** — Edita idioma (ex: `por`, `eng`, `jpn`) e título de cada faixa.
@@ -111,6 +111,8 @@ jellycc merge
 > [!NOTE]
 > Por padrão, o JellyCC mescla os arquivos usando o **Optimized Full Repair** (extraindo e alinhando as streams individualmente para evitar problemas de sincronização e silêncio no final).
 > Você pode escolher o modo **Legacy** no menu para fazer um remux direto sem arquivos temporários, caso as streams de origem tenham estruturas e timestamps totalmente íntegros.
+> 
+> Para alinhamento automático de áudio entre arquivos, veja o [Smart Spectrum Sync](docs/features/SMART_SPECTRUM_SYNC.pt.md).
 
 ### Configuração
 

@@ -31,7 +31,7 @@
 - 🔬 **Myopic Scan** — Deep Scan restricted to selected tracks.
 - 🔊 **Silence Scan** — Analyze and identify extended periods of silence within audio tracks.
 - 🎛️ **Track Selection** — Choose which video, audio, and subtitle streams to keep in the final file.
-- 🎶 **Smart Spectrum Sync** — Automatically aligns audio tracks from different sources, using advanced waveform cross-correlation.
+- 🎶 **[Smart Spectrum Sync](docs/features/SMART_SPECTRUM_SYNC.md)** — Automatically aligns audio tracks from different sources, using advanced waveform cross-correlation.
 - ⏱️ **Sync Adjustment / End Cut** — Defines time offset and end cut to avoid lip-sync issues.
 - 🔀 **File Merging** — Merges tracks from two files into a single MKV, with automatic/manual sync and Strict Mode.
 - 🏷️ **Tag Editing** — Edits language (e.g., `por`, `eng`, `jpn`) and title for each track.
@@ -42,7 +42,7 @@
 
 - **[FFmpeg & FFprobe](https://www.ffmpeg.org/download.html)** (Installed globally on the system)
 
-## 📦 Installation (Linux)
+## 📦 Installation
 
 > [!IMPORTANT]
 > The installation script currently downloads native binaries for **Linux** (x86_64 / ARM64). macOS native binaries are coming soon! For **Windows**, use **Docker** below.
@@ -110,6 +110,8 @@ jellycc merge
 > [!NOTE]
 > By default, JellyCC merges files using **Optimized Full Repair** (extracting and aligning streams individually to prevent sync issues and trailing silence). 
 > You can choose **Legacy** mode from the menu to do a direct remux without temp files if the source streams have fully healthy structures and timestamps.
+> 
+> For automatic audio alignment between different files, see [Smart Spectrum Sync](docs/features/SMART_SPECTRUM_SYNC.md).
 
 ### Configuration
 
