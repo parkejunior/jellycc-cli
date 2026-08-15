@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.6.0](https://github.com/parkejunior/jellycc-cli/compare/v0.5.1...v0.6.0) (2026-08-15)
+
+
+### Features
+
+* add audio track labels to silence scan ([7c81e93](https://github.com/parkejunior/jellycc-cli/commit/7c81e9302b9b5852231f54e54e9d30d9545b0808))
+* add muted text for run conversion on merge menu ([2556649](https://github.com/parkejunior/jellycc-cli/commit/2556649af96bcd15c4ce8df085addd9ef9a871e8))
+* add progress and track message on Silence Scan ([6b0fa93](https://github.com/parkejunior/jellycc-cli/commit/6b0fa93794cfb13e63b528fcc96ad7e1ee69fc24))
+* **docker:** add multi-platform docker support and GHCR image ([#26](https://github.com/parkejunior/jellycc-cli/issues/26)) ([5aec72d](https://github.com/parkejunior/jellycc-cli/commit/5aec72d98055c75169c87e722e58a0dc4efcbe06))
+* enhance spectrum sync messages ([e26b277](https://github.com/parkejunior/jellycc-cli/commit/e26b277a4aa372362c308681dafc78fa129c7bda))
+* implement Silence Scan for audio drop detection ([4658675](https://github.com/parkejunior/jellycc-cli/commit/4658675a4c5671362602275677298e30ae0b0c71))
+* implement silence scan for audio segments ([dc789d6](https://github.com/parkejunior/jellycc-cli/commit/dc789d60f160fa25a7847bfb0a2555fc1b6cb2b5))
+* implement smart spectrum sync for audio merging ([c236acf](https://github.com/parkejunior/jellycc-cli/commit/c236acf6e583bc5959c993404cd121123713a949))
+* implement smart spectrum sync for audio sync ([b269b1c](https://github.com/parkejunior/jellycc-cli/commit/b269b1c602bda58a572822268bcc784bbb7a723b))
+* **merge:** add optimized repair as default and disk check ([14bf8db](https://github.com/parkejunior/jellycc-cli/commit/14bf8dbb270f53eeb6907c6a339bf620c442b3be))
+* **merge:** add optimized repair as default and disk check ([bc78b24](https://github.com/parkejunior/jellycc-cli/commit/bc78b24f10ea2bfc8a5c9fdab8893c3a16a23d8a))
+
+
+### Bug Fixes
+
+* enhance sanitizePath to handle escaped spaces and Bash idioms ([1a19000](https://github.com/parkejunior/jellycc-cli/commit/1a190001fb8f803b90ffac5cbf5263a5582f9a59))
+* handle escaped spaces and Bash idioms ([ff1592a](https://github.com/parkejunior/jellycc-cli/commit/ff1592a0c243d6951c79d35d2d2c5d96539564bf))
+* reposition spectrum sync option in sync menu ([5143099](https://github.com/parkejunior/jellycc-cli/commit/51430993120113732de4a181eb2127cda26c2522))
+* use address-based tracking for silence detection ([9a1452f](https://github.com/parkejunior/jellycc-cli/commit/9a1452f603aeffb19532f83c6b4e0ab48660982b))
+
 ## [0.5.1](https://github.com/parkejunior/jellycc-cli/compare/v0.5.0...v0.5.1) (2026-05-25)
 
 
